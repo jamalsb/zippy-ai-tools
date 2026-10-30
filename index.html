@@ -3,117 +3,233 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Zippy AI Tools - Thumbnail Maker</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zippy AI Tools - Professional Thumbnail Maker</title>
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#090d1b;color:white;font-family:Arial,sans-serif}
-header{padding:20px;background:#11162a;border-bottom:1px solid #30334e}
-.logo{font-size:25px;font-weight:bold;color:#ad91ff}
-main{max-width:850px;margin:auto;padding:25px 16px}
+header{padding:18px 6%;background:#11172b;border-bottom:1px solid #30334e;display:flex;justify-content:space-between}
+.logo{font-size:24px;color:#ad91ff;font-weight:bold}
+header a{color:white;text-decoration:none}
+main{max-width:900px;margin:auto;padding:25px 15px}
 h1{text-align:center;color:#c4a9ff}
-p{text-align:center;color:#aeb6cb}
-.panel{background:#151c32;padding:20px;border-radius:15px;margin:20px 0}
-label{display:block;margin:17px 0 8px}
-input,textarea{width:100%;padding:13px;border-radius:8px;border:1px solid #444c68;background:#0c1224;color:white;font-size:16px}
-input[type=color]{height:48px;padding:4px}
-button{padding:14px;border:0;border-radius:9px;background:#8055e9;color:white;font-weight:bold;font-size:16px;width:100%;margin-top:15px}
-canvas{width:100%;border-radius:10px;background:#222;margin-top:15px}
+.sub{text-align:center;color:#aeb6cb}
+.panel{background:#151c32;padding:20px;border-radius:16px;margin-top:25px}
+label{display:block;margin:16px 0 8px}
+input,textarea,select{width:100%;padding:12px;border-radius:8px;border:1px solid #414a68;background:#0c1224;color:white;font-size:15px}
+input[type=color]{height:45px;padding:3px}
+input[type=range]{padding:0;accent-color:#9366f3}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+button{padding:13px;border:0;border-radius:9px;background:#8055e9;color:white;font-size:15px;font-weight:bold;cursor:pointer}
+button:active{opacity:.7}
+.templates{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.templates button{background:#293451;font-size:12px}
+.preview{width:100%;margin-top:20px;border-radius:10px;background:#222}
+.download{width:100%;margin-top:15px}
+.secondary{background:#34405e;width:100%;margin-top:10px}
 footer{text-align:center;padding:25px;color:#929bb2}
+@media(max-width:500px){.grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
-<header><div class="logo">⚡ Zippy AI Tools</div></header>
-<main>
-<h1>YouTube Thumbnail Maker</h1>
-<p>Create your own professional 1280 × 720 thumbnail.</p>
+<header>
+<div class="logo">⚡ Zippy AI</div>
+<a href="#maker">Thumbnail Maker</a>
+</header>
 
-<div class="panel">
-<label>Upload your image</label>
+<main>
+<h1>Professional Thumbnail Maker</h1>
+<p class="sub">Create beautiful YouTube thumbnails in seconds.</p>
+
+<div class="panel" id="maker">
+
+<h3>🎨 Choose a Template</h3>
+<div class="templates">
+<button onclick="preset('gaming')">🎮 Gaming</button>
+<button onclick="preset('news')">📰 News</button>
+<button onclick="preset('youtube')">▶ YouTube</button>
+</div>
+
+<label>Upload Your Photo</label>
 <input type="file" id="photo" accept="image/*">
 
-<label>Thumbnail Title</label>
-<textarea id="title" rows="2" placeholder="Write your video title">MY AWESOME VIDEO</textarea>
+<label>Thumbnail Text</label>
+<textarea id="title" rows="3">MY AWESOME VIDEO</textarea>
 
+<div class="grid">
+<div>
 <label>Text Color</label>
 <input type="color" id="color" value="#ffffff">
+</div>
+<div>
+<label>Background Color</label>
+<input type="color" id="bgcolor" value="#7438ec">
+</div>
+</div>
 
-<label>Text Background Color</label>
-<input type="color" id="bgcolor" value="#6c35df">
+<label>Font Style</label>
+<select id="font">
+<option value="Arial">Arial Bold</option>
+<option value="Impact">Impact</option>
+<option value="Georgia">Georgia</option>
+<option value="Verdana">Verdana</option>
+</select>
 
 <label>Text Size</label>
-<input type="range" id="size" min="35" max="110" value="70">
+<input type="range" id="size" min="30" max="110" value="70">
 
-<button onclick="makeThumb()">Create Thumbnail</button>
-<canvas id="canvas" width="1280" height="720"></canvas>
-<button onclick="downloadThumb()">Download PNG</button>
+<label>Text Position (Vertical)</label>
+<input type="range" id="position" min="10" max="90" value="50">
+
+<label>Text Outline Color</label>
+<input type="color" id="outline" value="#000000">
+
+<label>Outline Thickness</label>
+<input type="range" id="stroke" min="0" max="12" value="4">
+
+<label>Text Shadow</label>
+<select id="shadow">
+<option value="yes">Enabled</option>
+<option value="no">Disabled</option>
+</select>
+
+<button class="download" onclick="makeThumb()">✨ Update Thumbnail</button>
+
+<canvas id="canvas" class="preview" width="1280" height="720"></canvas>
+
+<button class="download" onclick="downloadThumb()">⬇ Download PNG (1280×720)</button>
+<button class="secondary" onclick="resetMaker()">Reset Design</button>
 </div>
 </main>
+
 <footer>© 2026 Zippy AI Tools</footer>
 
 <script>
-const canvas=document.getElementById("canvas");
-const ctx=canvas.getContext("2d");
+const c=document.getElementById("canvas");
+const ctx=c.getContext("2d");
 let photo=null;
+let presetColor="#7438ec";
+
+function preset(type){
+if(type==="gaming"){
+presetColor="#e51b35";
+document.getElementById("color").value="#ffffff";
+document.getElementById("bgcolor").value="#e51b35";
+document.getElementById("title").value="EPIC GAME!";
+}
+if(type==="news"){
+presetColor="#e5a000";
+document.getElementById("color").value="#ffffff";
+document.getElementById("bgcolor").value="#bd1717";
+document.getElementById("title").value="BREAKING NEWS!";
+}
+if(type==="youtube"){
+presetColor="#7438ec";
+document.getElementById("color").value="#ffffff";
+document.getElementById("bgcolor").value="#7438ec";
+document.getElementById("title").value="NEW VIDEO!";
+}
+makeThumb();
+}
 
 function makeThumb(){
 ctx.clearRect(0,0,1280,720);
 
 if(photo){
 let scale=Math.max(1280/photo.width,720/photo.height);
-let w=photo.width*scale;
-let h=photo.height*scale;
+let w=photo.width*scale,h=photo.height*scale;
 ctx.drawImage(photo,(1280-w)/2,(720-h)/2,w,h);
 }else{
 let g=ctx.createLinearGradient(0,0,1280,720);
 g.addColorStop(0,"#171b42");
-g.addColorStop(1,"#7741cf");
+g.addColorStop(1,document.getElementById("bgcolor").value);
 ctx.fillStyle=g;
 ctx.fillRect(0,0,1280,720);
 }
 
-ctx.fillStyle="rgba(0,0,0,0.30)";
+ctx.fillStyle="rgba(0,0,0,.28)";
 ctx.fillRect(0,0,1280,720);
 
-let title=document.getElementById("title").value || "MY VIDEO";
-let lines=title.toUpperCase().split("\n");
-let size=Number(document.getElementById("size").value);
-ctx.font="bold "+size+"px Arial";
+const lines=document.getElementById("title").value.toUpperCase().split("\n").slice(0,5);
+const size=Number(document.getElementById("size").value);
+const font=document.getElementById("font").value;
+const y=720*Number(document.getElementById("position").value)/100;
+const lineHeight=size*1.25;
+
 ctx.textAlign="center";
 ctx.textBaseline="middle";
-
-let lineHeight=size*1.25;
-let total=lines.length*lineHeight;
-let start=(720-total)/2;
+ctx.font="bold "+size+"px "+font;
+ctx.lineJoin="round";
 
 lines.forEach((line,i)=>{
-let y=start+i*lineHeight+lineHeight/2;
-let width=Math.min(ctx.measureText(line).width+55,1180);
+let py=y+(i-(lines.length-1)/2)*lineHeight;
+let width=Math.min(ctx.measureText(line).width+45,1200);
+let x=(1280-width)/2;
+
 ctx.fillStyle=document.getElementById("bgcolor").value;
-ctx.fillRect((1280-width)/2,y-lineHeight/2,width,lineHeight);
+ctx.fillRect(x,py-lineHeight/2,width,lineHeight);
+
+if(document.getElementById("shadow").value==="yes"){
+ctx.shadowColor="#000000";
+ctx.shadowBlur=12;
+ctx.shadowOffsetY=5;
+}else{
+ctx.shadowBlur=0;
+ctx.shadowOffsetY=0;
+}
+
+ctx.lineWidth=Number(document.getElementById("stroke").value);
+ctx.strokeStyle=document.getElementById("outline").value;
+ctx.strokeText(line,640,py,1150);
+
 ctx.fillStyle=document.getElementById("color").value;
-ctx.fillText(line,640,y,1150);
+ctx.fillText(line,640,py,1150);
+ctx.shadowBlur=0;
+ctx.shadowOffsetY=0;
 });
 }
 
 document.getElementById("photo").addEventListener("change",function(e){
-let file=e.target.files[0];
+const file=e.target.files[0];
 if(!file)return;
-let reader=new FileReader();
-reader.onload=function(event){
+if(!file.type.startsWith("image/")){
+alert("Please select an image.");
+return;
+}
+const reader=new FileReader();
+reader.onload=function(ev){
 photo=new Image();
 photo.onload=makeThumb;
-photo.src=event.target.result;
+photo.src=ev.target.result;
 };
 reader.readAsDataURL(file);
 });
 
+["title","color","bgcolor","font","size","position","outline","stroke","shadow"].forEach(id=>{
+document.getElementById(id).addEventListener("input",makeThumb);
+});
+
 function downloadThumb(){
 makeThumb();
-let link=document.createElement("a");
-link.download="zippy-thumbnail.png";
-link.href=canvas.toDataURL("image/png");
-link.click();
+const a=document.createElement("a");
+a.download="zippy-professional-thumbnail.png";
+a.href=c.toDataURL("image/png");
+a.click();
+}
+
+function resetMaker(){
+photo=null;
+document.getElementById("photo").value="";
+document.getElementById("title").value="MY AWESOME VIDEO";
+document.getElementById("color").value="#ffffff";
+document.getElementById("bgcolor").value="#7438ec";
+document.getElementById("size").value=70;
+document.getElementById("position").value=50;
+document.getElementById("stroke").value=4;
+document.getElementById("outline").value="#000000";
+document.getElementById("font").value="Arial";
+document.getElementById("shadow").value="yes";
+makeThumb();
 }
 makeThumb();
 </script>
