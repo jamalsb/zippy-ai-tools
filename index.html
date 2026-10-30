@@ -4,234 +4,414 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Zippy AI Tools - Professional Thumbnail Maker</title>
+<title>Zippy AI - Layer Thumbnail Editor</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#090d1b;color:white;font-family:Arial,sans-serif}
-header{padding:18px 6%;background:#11172b;border-bottom:1px solid #30334e;display:flex;justify-content:space-between}
-.logo{font-size:24px;color:#ad91ff;font-weight:bold}
-header a{color:white;text-decoration:none}
-main{max-width:900px;margin:auto;padding:25px 15px}
-h1{text-align:center;color:#c4a9ff}
-.sub{text-align:center;color:#aeb6cb}
-.panel{background:#151c32;padding:20px;border-radius:16px;margin-top:25px}
-label{display:block;margin:16px 0 8px}
-input,textarea,select{width:100%;padding:12px;border-radius:8px;border:1px solid #414a68;background:#0c1224;color:white;font-size:15px}
-input[type=color]{height:45px;padding:3px}
-input[type=range]{padding:0;accent-color:#9366f3}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-button{padding:13px;border:0;border-radius:9px;background:#8055e9;color:white;font-size:15px;font-weight:bold;cursor:pointer}
+body{margin:0;background:#090d1b;color:white;font-family:Arial}
+header{background:#11172b;padding:18px;display:flex;justify-content:space-between}
+.logo{font-size:23px;font-weight:bold;color:#b18aff}
+main{max-width:900px;margin:auto;padding:16px}
+h1{text-align:center;color:#c2a5ff}
+.panel{background:#151c32;padding:16px;border-radius:15px;margin:15px 0}
+button{background:#8055e9;color:white;border:0;border-radius:8px;padding:12px;font-weight:bold;cursor:pointer}
 button:active{opacity:.7}
-.templates{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
-.templates button{background:#293451;font-size:12px}
-.preview{width:100%;margin-top:20px;border-radius:10px;background:#222}
-.download{width:100%;margin-top:15px}
-.secondary{background:#34405e;width:100%;margin-top:10px}
-footer{text-align:center;padding:25px;color:#929bb2}
-@media(max-width:500px){.grid{grid-template-columns:1fr}}
+input,select{width:100%;padding:11px;background:#0c1224;color:white;border:1px solid #424d6c;border-radius:8px}
+input[type=color]{height:43px;padding:3px}
+input[type=range]{padding:0}
+label{display:block;margin:13px 0 7px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.tools{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+#canvas{width:100%;height:auto;display:block;background:#252344;border-radius:9px;touch-action:none;margin-top:12px}
+.layer{background:#27314d;padding:10px;margin:7px 0;border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:5px}
+.layer button{padding:8px}
+.layer.active{outline:2px solid #a783ff}
+.small{font-size:12px;color:#b7bfd2}
+.full{width:100%;margin-top:10px}
+.danger{background:#b72d46}
+.secondary{background:#34415f}
+footer{text-align:center;padding:25px;color:#9ca5ba}
+@media(max-width:430px){.tools{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
 <header>
 <div class="logo">⚡ Zippy AI</div>
-<a href="#maker">Thumbnail Maker</a>
+<div>Thumbnail Studio</div>
 </header>
 
 <main>
-<h1>Professional Thumbnail Maker</h1>
-<p class="sub">Create beautiful YouTube thumbnails in seconds.</p>
+<h1>Professional Thumbnail Editor</h1>
+<p style="text-align:center;color:#aab2c9">Create • Edit • Move • Design</p>
 
-<div class="panel" id="maker">
-
-<h3>🎨 Choose a Template</h3>
-<div class="templates">
-<button onclick="preset('gaming')">🎮 Gaming</button>
-<button onclick="preset('news')">📰 News</button>
-<button onclick="preset('youtube')">▶ YouTube</button>
-</div>
-
-<label>Upload Your Photo</label>
+<div class="panel">
+<h3>📷 Background Image</h3>
 <input type="file" id="photo" accept="image/*">
 
-<label>Thumbnail Text</label>
-<textarea id="title" rows="3">MY AWESOME VIDEO</textarea>
-
-<div class="grid">
-<div>
-<label>Text Color</label>
-<input type="color" id="color" value="#ffffff">
-</div>
-<div>
-<label>Background Color</label>
-<input type="color" id="bgcolor" value="#7438ec">
+<h3>➕ Add New Layers</h3>
+<div class="tools">
+<button onclick="addText()">+ Text</button>
+<button onclick="addShape('rect')">+ Box</button>
+<button onclick="addShape('circle')">+ Circle</button>
+<button onclick="addShape('line')">+ Line</button>
+<button onclick="addShape('rect')">+ Color Layer</button>
+<button onclick="duplicate()">Duplicate</button>
 </div>
 </div>
 
-<label>Font Style</label>
-<select id="font">
-<option value="Arial">Arial Bold</option>
-<option value="Impact">Impact</option>
-<option value="Georgia">Georgia</option>
-<option value="Verdana">Verdana</option>
-</select>
+<div class="panel">
+<h3>🎨 Your Thumbnail</h3>
+<p class="small">کسی بھی Layer کو انگلی سے پکڑ کر منتقل کریں۔ منتخب Layer کو نیچے سے ایڈٹ کریں۔</p>
+<canvas id="canvas" width="1280" height="720"></canvas>
+<p class="small">Canvas: 1280 × 720 pixels</p>
+</div>
 
-<label>Text Size</label>
-<input type="range" id="size" min="30" max="110" value="70">
+<div class="panel">
+<h3>📚 Layers Panel</h3>
+<div id="layers"></div>
+</div>
 
-<label>Text Position (Vertical)</label>
-<input type="range" id="position" min="10" max="90" value="50">
+<div class="panel">
+<h3>✏️ Edit Selected Layer</h3>
+<div id="editor">
+<p class="small">پہلے کوئی Layer منتخب کریں۔</p>
+</div>
+</div>
 
-<label>Text Outline Color</label>
-<input type="color" id="outline" value="#000000">
-
-<label>Outline Thickness</label>
-<input type="range" id="stroke" min="0" max="12" value="4">
-
-<label>Text Shadow</label>
-<select id="shadow">
-<option value="yes">Enabled</option>
-<option value="no">Disabled</option>
-</select>
-
-<button class="download" onclick="makeThumb()">✨ Update Thumbnail</button>
-
-<canvas id="canvas" class="preview" width="1280" height="720"></canvas>
-
-<button class="download" onclick="downloadThumb()">⬇ Download PNG (1280×720)</button>
-<button class="secondary" onclick="resetMaker()">Reset Design</button>
+<div class="panel">
+<h3>💾 Save Your Design</h3>
+<button class="full" onclick="download()">⬇ Download PNG</button>
+<button class="full secondary" onclick="reset()">Reset Design</button>
 </div>
 </main>
 
 <footer>© 2026 Zippy AI Tools</footer>
 
 <script>
-const c=document.getElementById("canvas");
-const ctx=c.getContext("2d");
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
+let layers=[];
+let selected=null;
 let photo=null;
-let presetColor="#7438ec";
+let dragging=false;
+let offsetX=0,offsetY=0;
 
-function preset(type){
-if(type==="gaming"){
-presetColor="#e51b35";
-document.getElementById("color").value="#ffffff";
-document.getElementById("bgcolor").value="#e51b35";
-document.getElementById("title").value="EPIC GAME!";
-}
-if(type==="news"){
-presetColor="#e5a000";
-document.getElementById("color").value="#ffffff";
-document.getElementById("bgcolor").value="#bd1717";
-document.getElementById("title").value="BREAKING NEWS!";
-}
-if(type==="youtube"){
-presetColor="#7438ec";
-document.getElementById("color").value="#ffffff";
-document.getElementById("bgcolor").value="#7438ec";
-document.getElementById("title").value="NEW VIDEO!";
-}
-makeThumb();
+function addText(){
+const l={
+id:Date.now()+Math.random(),
+type:"text",text:"YOUR TEXT",
+x:640,y:360,size:75,
+color:"#ffffff",bg:"transparent",
+font:"Arial",bold:true,
+stroke:"#000000",strokeWidth:3,
+opacity:1
+};
+layers.push(l);
+select(l.id);
 }
 
-function makeThumb(){
-ctx.clearRect(0,0,1280,720);
-
-if(photo){
-let scale=Math.max(1280/photo.width,720/photo.height);
-let w=photo.width*scale,h=photo.height*scale;
-ctx.drawImage(photo,(1280-w)/2,(720-h)/2,w,h);
-}else{
-let g=ctx.createLinearGradient(0,0,1280,720);
-g.addColorStop(0,"#171b42");
-g.addColorStop(1,document.getElementById("bgcolor").value);
-ctx.fillStyle=g;
-ctx.fillRect(0,0,1280,720);
+function addShape(type){
+const l={
+id:Date.now()+Math.random(),
+type:type,x:640,y:360,
+w:350,h:110,
+color:"#8055e9",opacity:1
+};
+layers.push(l);
+select(l.id);
 }
 
-ctx.fillStyle="rgba(0,0,0,.28)";
-ctx.fillRect(0,0,1280,720);
-
-const lines=document.getElementById("title").value.toUpperCase().split("\n").slice(0,5);
-const size=Number(document.getElementById("size").value);
-const font=document.getElementById("font").value;
-const y=720*Number(document.getElementById("position").value)/100;
-const lineHeight=size*1.25;
-
-ctx.textAlign="center";
-ctx.textBaseline="middle";
-ctx.font="bold "+size+"px "+font;
-ctx.lineJoin="round";
-
-lines.forEach((line,i)=>{
-let py=y+(i-(lines.length-1)/2)*lineHeight;
-let width=Math.min(ctx.measureText(line).width+45,1200);
-let x=(1280-width)/2;
-
-ctx.fillStyle=document.getElementById("bgcolor").value;
-ctx.fillRect(x,py-lineHeight/2,width,lineHeight);
-
-if(document.getElementById("shadow").value==="yes"){
-ctx.shadowColor="#000000";
-ctx.shadowBlur=12;
-ctx.shadowOffsetY=5;
-}else{
-ctx.shadowBlur=0;
-ctx.shadowOffsetY=0;
+function select(id){
+selected=id;
+draw();
+renderLayers();
+renderEditor();
 }
 
-ctx.lineWidth=Number(document.getElementById("stroke").value);
-ctx.strokeStyle=document.getElementById("outline").value;
-ctx.strokeText(line,640,py,1150);
+function current(){
+return layers.find(l=>l.id===selected);
+}
 
-ctx.fillStyle=document.getElementById("color").value;
-ctx.fillText(line,640,py,1150);
-ctx.shadowBlur=0;
-ctx.shadowOffsetY=0;
+function renderLayers(){
+const box=document.getElementById("layers");
+box.innerHTML="";
+[...layers].reverse().forEach(l=>{
+const div=document.createElement("div");
+div.className="layer"+(l.id===selected?" active":"");
+
+const name=l.type==="text"?(l.text||"Text"):l.type;
+const label=document.createElement("span");
+label.textContent=name.slice(0,22);
+label.style.flex="1";
+label.onclick=()=>select(l.id);
+
+const up=document.createElement("button");
+up.textContent="↑";
+up.onclick=()=>moveLayer(l.id,1);
+
+const down=document.createElement("button");
+down.textContent="↓";
+down.onclick=()=>moveLayer(l.id,-1);
+
+const del=document.createElement("button");
+del.textContent="✕";
+del.className="danger";
+del.onclick=()=>removeLayer(l.id);
+
+div.append(label,up,down,del);
+box.append(div);
 });
 }
 
-document.getElementById("photo").addEventListener("change",function(e){
-const file=e.target.files[0];
-if(!file)return;
-if(!file.type.startsWith("image/")){
-alert("Please select an image.");
+function renderEditor(){
+const l=current();
+const box=document.getElementById("editor");
+if(!l){
+box.innerHTML='<p class="small">پہلے کوئی Layer منتخب کریں۔</p>';
 return;
 }
+
+box.innerHTML="";
+function field(label,element){
+const wrap=document.createElement("div");
+const title=document.createElement("label");
+title.textContent=label;
+wrap.append(title,element);
+box.append(wrap);
+}
+
+function input(type,value,change){
+const el=document.createElement("input");
+el.type=type;
+el.value=value;
+el.addEventListener("input",()=>{
+change(el.value);
+draw();
+});
+return el;
+}
+
+if(l.type==="text"){
+const text=document.createElement("textarea");
+text.value=l.text;
+text.style.width="100%";
+text.style.height="85px";
+text.style.background="#0c1224";
+text.style.color="white";
+text.style.padding="12px";
+text.style.borderRadius="8px";
+text.oninput=()=>{
+l.text=text.value;
+draw();
+renderLayers();
+};
+field("Text Content",text);
+
+field("Text Color",input("color",l.color,v=>l.color=v));
+field("Text Background",input("color",
+l.bg==="transparent"?"#8055e9":l.bg,v=>l.bg=v));
+
+const font=document.createElement("select");
+["Arial","Impact","Georgia","Verdana","Trebuchet MS","Courier New"].forEach(f=>{
+const o=document.createElement("option");
+o.value=f;o.textContent=f;
+font.append(o);
+});
+font.value=l.font;
+font.onchange=()=>{l.font=font.value;draw()};
+field("Font Style",font);
+
+field("Font Size",input("range",l.size,v=>l.size=+v));
+field("Outline Color",input("color",l.stroke,v=>l.stroke=v));
+field("Outline Width",input("range",l.strokeWidth,v=>l.strokeWidth=+v));
+}else{
+field("Layer Color",input("color",l.color,v=>l.color=v));
+field("Width",input("range",l.w||350,v=>l.w=+v));
+field("Height",input("range",l.h||110,v=>l.h=+v));
+}
+
+field("Horizontal Position",input("range",l.x,v=>l.x=+v));
+field("Vertical Position",input("range",l.y,v=>l.y=+v));
+field("Opacity",input("range",l.opacity,v=>l.opacity=+v));
+
+const buttons=document.createElement("div");
+buttons.className="row";
+const dup=document.createElement("button");
+dup.textContent="Duplicate";
+dup.onclick=duplicate;
+const del=document.createElement("button");
+del.textContent="Delete";
+del.className="danger";
+del.onclick=()=>removeLayer(l.id);
+buttons.append(dup,del);
+box.append(buttons);
+}
+
+function moveLayer(id,direction){
+const i=layers.findIndex(l=>l.id===id);
+const j=i+direction;
+if(j<0||j>=layers.length)return;
+[layers[i],layers[j]]=[layers[j],layers[i]];
+draw();renderLayers();
+}
+
+function removeLayer(id){
+layers=layers.filter(l=>l.id!==id);
+selected=null;
+draw();renderLayers();renderEditor();
+}
+
+function duplicate(){
+const l=current();
+if(!l)return;
+const copy={...l,id:Date.now()+Math.random(),x:l.x+35,y:l.y+35};
+layers.push(copy);
+select(copy.id);
+}
+
+function draw(){
+ctx.clearRect(0,0,1280,720);
+ctx.fillStyle="#242344";
+ctx.fillRect(0,0,1280,720);
+
+if(photo){
+const s=Math.max(1280/photo.width,720/photo.height);
+const w=photo.width*s,h=photo.height*s;
+ctx.drawImage(photo,(1280-w)/2,(720-h)/2,w,h);
+}
+
+layers.forEach(l=>{
+ctx.save();
+ctx.globalAlpha=Number(l.opacity??1);
+
+if(l.type==="text"){
+ctx.textAlign="center";
+ctx.textBaseline="middle";
+ctx.font=(l.bold?"bold ":"")+l.size+"px "+l.font;
+const lines=l.text.split("\n");
+const lineHeight=l.size*1.2;
+const maxWidth=Math.max(...lines.map(t=>ctx.measureText(t).width));
+const boxW=Math.min(maxWidth+35,1200);
+const boxH=lines.length*lineHeight+12;
+
+if(l.bg!=="transparent"){
+ctx.fillStyle=l.bg;
+ctx.fillRect(l.x-boxW/2,l.y-boxH/2,boxW,boxH);
+}
+
+lines.forEach((line,i)=>{
+const y=l.y+(i-(lines.length-1)/2)*lineHeight;
+ctx.lineWidth=l.strokeWidth;
+ctx.strokeStyle=l.stroke;
+if(l.strokeWidth)ctx.strokeText(line,l.x,y,1180);
+ctx.fillStyle=l.color;
+ctx.fillText(line,l.x,y,1180);
+});
+}else{
+ctx.fillStyle=l.color;
+ctx.strokeStyle=l.color;
+ctx.lineWidth=8;
+if(l.type==="rect")ctx.fillRect(l.x-l.w/2,l.y-l.h/2,l.w,l.h);
+if(l.type==="circle"){
+ctx.beginPath();
+ctx.ellipse(l.x,l.y,l.w/2,l.h/2,0,0,Math.PI*2);
+ctx.fill();
+}
+if(l.type==="line"){
+ctx.beginPath();
+ctx.moveTo(l.x-l.w/2,l.y);
+ctx.lineTo(l.x+l.w/2,l.y);
+ctx.stroke();
+}
+}
+ctx.restore();
+
+if(l.id===selected){
+ctx.save();
+ctx.strokeStyle="#bd99ff";
+ctx.lineWidth=4;
+ctx.setLineDash([12,8]);
+ctx.strokeRect(l.x-140,l.y-65,280,130);
+ctx.restore();
+}
+});
+}
+
+function coords(e){
+const r=canvas.getBoundingClientRect();
+return {
+x:(e.clientX-r.left)*1280/r.width,
+y:(e.clientY-r.top)*720/r.height
+};
+}
+
+function hit(l,p){
+const w=l.type==="text"?Math.max(180,l.size*4):l.w||350;
+const h=l.type==="text"?Math.max(90,l.size*1.5):l.h||110;
+return p.x>=l.x-w/2&&p.x<=l.x+w/2&&
+p.y>=l.y-h/2&&p.y<=l.y+h/2;
+}
+
+canvas.addEventListener("pointerdown",e=>{
+const p=coords(e);
+for(let i=layers.length-1;i>=0;i--){
+const l=layers[i];
+if(hit(l,p)){
+select(l.id);
+dragging=true;
+offsetX=p.x-l.x;
+offsetY=p.y-l.y;
+canvas.setPointerCapture(e.pointerId);
+return;
+}
+}
+selected=null;
+draw();renderLayers();renderEditor();
+});
+
+canvas.addEventListener("pointermove",e=>{
+if(!dragging)return;
+const p=coords(e);
+const l=current();
+if(!l)return;
+l.x=Math.max(0,Math.min(1280,p.x-offsetX));
+l.y=Math.max(0,Math.min(720,p.y-offsetY));
+draw();
+});
+
+canvas.addEventListener("pointerup",()=>dragging=false);
+canvas.addEventListener("pointercancel",()=>dragging=false);
+
+document.getElementById("photo").addEventListener("change",e=>{
+const file=e.target.files[0];
+if(!file)return;
+if(!file.type.startsWith("image/"))return alert("Select an image");
 const reader=new FileReader();
-reader.onload=function(ev){
-photo=new Image();
-photo.onload=makeThumb;
-photo.src=ev.target.result;
+reader.onload=ev=>{
+const img=new Image();
+img.onload=()=>{photo=img;draw()};
+img.src=ev.target.result;
 };
 reader.readAsDataURL(file);
 });
 
-["title","color","bgcolor","font","size","position","outline","stroke","shadow"].forEach(id=>{
-document.getElementById(id).addEventListener("input",makeThumb);
-});
-
-function downloadThumb(){
-makeThumb();
+function download(){
+draw();
 const a=document.createElement("a");
-a.download="zippy-professional-thumbnail.png";
-a.href=c.toDataURL("image/png");
+a.download="Zippy-AI-Thumbnail.png";
+a.href=canvas.toDataURL("image/png");
 a.click();
 }
 
-function resetMaker(){
+function reset(){
+if(!confirm("Reset your entire design?"))return;
+layers=[];
 photo=null;
 document.getElementById("photo").value="";
-document.getElementById("title").value="MY AWESOME VIDEO";
-document.getElementById("color").value="#ffffff";
-document.getElementById("bgcolor").value="#7438ec";
-document.getElementById("size").value=70;
-document.getElementById("position").value=50;
-document.getElementById("stroke").value=4;
-document.getElementById("outline").value="#000000";
-document.getElementById("font").value="Arial";
-document.getElementById("shadow").value="yes";
-makeThumb();
+selected=null;
+draw();renderLayers();renderEditor();
 }
-makeThumb();
+
+draw();
 </script>
 </body>
 </html>
