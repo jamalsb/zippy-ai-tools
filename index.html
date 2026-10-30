@@ -3,115 +3,119 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zippy AI Tools - Create Anything with AI</title>
-<meta name="description" content="Create AI videos, animate images and explore powerful AI creative tools with Zippy AI Tools.">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zippy AI Tools - Thumbnail Maker</title>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,sans-serif;background:#090d1b;color:white}
-header{display:flex;justify-content:space-between;align-items:center;padding:22px 7%;border-bottom:1px solid #252b40}
-.logo{font-size:25px;font-weight:bold;color:#a78bfa}
-nav a{color:#ddd;text-decoration:none;margin-left:20px;font-size:14px}
-.hero{text-align:center;padding:90px 20px 65px;background:radial-gradient(ellipse at top,#29205a,#090d1b 70%)}
-.tag{display:inline-block;border:1px solid #7054bb;padding:9px 16px;border-radius:30px;color:#c4b5fd;font-size:13px}
-h1{font-size:clamp(38px,7vw,65px);margin:25px 0 18px;line-height:1.1}
-h1 span{color:#a78bfa}
-.hero p{color:#b7bdd0;line-height:1.7;max-width:600px;margin:0 auto 30px}
-.btn{display:inline-block;background:#8055e9;color:white;padding:15px 25px;border-radius:10px;text-decoration:none;font-weight:bold}
-section{padding:55px 7%}
-.heading{text-align:center;font-size:30px;margin-bottom:12px}
-.sub{text-align:center;color:#9ba3b9;margin-bottom:35px}
-.tools{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
-.tool{background:#141b30;border:1px solid #29334e;padding:25px;border-radius:16px;transition:.2s}
-.tool:hover{border-color:#9874ff;transform:translateY(-4px)}
-.tool .emoji{font-size:35px;margin-bottom:17px}
-.tool h3{margin-bottom:12px;font-size:19px}
-.tool p{color:#aab3c8;font-size:14px;line-height:1.6;margin-bottom:20px}
-.tool a{color:#b69aff;text-decoration:none;font-weight:bold}
-.note{background:#171b30;border:1px solid #39315f;border-radius:14px;padding:25px;text-align:center;margin-top:35px;color:#c8c5df;line-height:1.7}
-footer{text-align:center;padding:30px;color:#8f98ad;border-top:1px solid #252b40;font-size:13px}
-@media(max-width:600px){header{padding:18px 5%}nav a{margin-left:9px;font-size:12px}.hero{padding-top:65px}section{padding:45px 5%}}
+*{box-sizing:border-box}
+body{margin:0;background:#090d1b;color:white;font-family:Arial,sans-serif}
+header{padding:20px;background:#11162a;border-bottom:1px solid #30334e}
+.logo{font-size:25px;font-weight:bold;color:#ad91ff}
+main{max-width:850px;margin:auto;padding:25px 16px}
+h1{text-align:center;color:#c4a9ff}
+p{text-align:center;color:#aeb6cb}
+.panel{background:#151c32;padding:20px;border-radius:15px;margin:20px 0}
+label{display:block;margin:17px 0 8px}
+input,textarea{width:100%;padding:13px;border-radius:8px;border:1px solid #444c68;background:#0c1224;color:white;font-size:16px}
+input[type=color]{height:48px;padding:4px}
+button{padding:14px;border:0;border-radius:9px;background:#8055e9;color:white;font-weight:bold;font-size:16px;width:100%;margin-top:15px}
+canvas{width:100%;border-radius:10px;background:#222;margin-top:15px}
+footer{text-align:center;padding:25px;color:#929bb2}
 </style>
 </head>
 <body>
-<header>
-<div class="logo">⚡ Zippy AI</div>
-<nav>
-<a href="#home">Home</a>
-<a href="#tools">AI Tools</a>
-</nav>
-</header>
-
+<header><div class="logo">⚡ Zippy AI Tools</div></header>
 <main>
-<div class="hero" id="home">
-<div class="tag">✦ Your AI Creative Studio</div>
-<h1>Create More.<br><span>Create Faster.</span></h1>
-<p>Discover powerful AI tools to create videos, animate images, design thumbnails and bring your creative ideas to life.</p>
-<a href="#tools" class="btn">Explore AI Tools →</a>
-</div>
+<h1>YouTube Thumbnail Maker</h1>
+<p>Create your own professional 1280 × 720 thumbnail.</p>
 
-<section id="tools">
-<h2 class="heading">Explore Our AI Tools</h2>
-<p class="sub">Everything you need to create amazing content.</p>
+<div class="panel">
+<label>Upload your image</label>
+<input type="file" id="photo" accept="image/*">
 
-<div class="tools">
-<div class="tool">
-<div class="emoji">🎬</div>
-<h3>Text to Video</h3>
-<p>Turn your written ideas into amazing AI-generated videos.</p>
-<a href="#video">Explore Tool →</a>
-</div>
+<label>Thumbnail Title</label>
+<textarea id="title" rows="2" placeholder="Write your video title">MY AWESOME VIDEO</textarea>
 
-<div class="tool">
-<div class="emoji">🖼️</div>
-<h3>Image to Video</h3>
-<p>Bring your still images to life with AI animation.</p>
-<a href="#video">Explore Tool →</a>
-</div>
+<label>Text Color</label>
+<input type="color" id="color" value="#ffffff">
 
-<div class="tool">
-<div class="emoji">✂️</div>
-<h3>Background Remover</h3>
-<p>Remove image backgrounds and create clean images.</p>
-<a href="#more">Explore Tool →</a>
-</div>
+<label>Text Background Color</label>
+<input type="color" id="bgcolor" value="#6c35df">
 
-<div class="tool">
-<div class="emoji">🎨</div>
-<h3>Thumbnail Maker</h3>
-<p>Create attractive thumbnails for your YouTube videos.</p>
-<a href="#more">Explore Tool →</a>
-</div>
+<label>Text Size</label>
+<input type="range" id="size" min="35" max="110" value="70">
 
-<div class="tool">
-<div class="emoji">✍️</div>
-<h3>AI Content Writer</h3>
-<p>Generate titles, descriptions, hashtags and scripts.</p>
-<a href="#more">Explore Tool →</a>
+<button onclick="makeThumb()">Create Thumbnail</button>
+<canvas id="canvas" width="1280" height="720"></canvas>
+<button onclick="downloadThumb()">Download PNG</button>
 </div>
-
-<div class="tool">
-<div class="emoji">🎞️</div>
-<h3>Video Converter</h3>
-<p>Explore video compression and format conversion tools.</p>
-<a href="#more">Explore Tool →</a>
-</div>
-</div>
-
-<div class="note" id="video">
-<h3>🚀 AI Video Studio</h3>
-<p>Text-to-Video and Image-to-Video generation are planned for our next development phase.</p>
-</div>
-<div class="note" id="more">
-<h3>More AI Tools Coming Soon</h3>
-<p>We are building new creative tools for everyone.</p>
-</div>
-</section>
 </main>
+<footer>© 2026 Zippy AI Tools</footer>
 
-<footer>
-© 2026 Zippy AI Tools. All rights reserved.
-</footer>
+<script>
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
+let photo=null;
+
+function makeThumb(){
+ctx.clearRect(0,0,1280,720);
+
+if(photo){
+let scale=Math.max(1280/photo.width,720/photo.height);
+let w=photo.width*scale;
+let h=photo.height*scale;
+ctx.drawImage(photo,(1280-w)/2,(720-h)/2,w,h);
+}else{
+let g=ctx.createLinearGradient(0,0,1280,720);
+g.addColorStop(0,"#171b42");
+g.addColorStop(1,"#7741cf");
+ctx.fillStyle=g;
+ctx.fillRect(0,0,1280,720);
+}
+
+ctx.fillStyle="rgba(0,0,0,0.30)";
+ctx.fillRect(0,0,1280,720);
+
+let title=document.getElementById("title").value || "MY VIDEO";
+let lines=title.toUpperCase().split("\n");
+let size=Number(document.getElementById("size").value);
+ctx.font="bold "+size+"px Arial";
+ctx.textAlign="center";
+ctx.textBaseline="middle";
+
+let lineHeight=size*1.25;
+let total=lines.length*lineHeight;
+let start=(720-total)/2;
+
+lines.forEach((line,i)=>{
+let y=start+i*lineHeight+lineHeight/2;
+let width=Math.min(ctx.measureText(line).width+55,1180);
+ctx.fillStyle=document.getElementById("bgcolor").value;
+ctx.fillRect((1280-width)/2,y-lineHeight/2,width,lineHeight);
+ctx.fillStyle=document.getElementById("color").value;
+ctx.fillText(line,640,y,1150);
+});
+}
+
+document.getElementById("photo").addEventListener("change",function(e){
+let file=e.target.files[0];
+if(!file)return;
+let reader=new FileReader();
+reader.onload=function(event){
+photo=new Image();
+photo.onload=makeThumb;
+photo.src=event.target.result;
+};
+reader.readAsDataURL(file);
+});
+
+function downloadThumb(){
+makeThumb();
+let link=document.createElement("a");
+link.download="zippy-thumbnail.png";
+link.href=canvas.toDataURL("image/png");
+link.click();
+}
+makeThumb();
+</script>
 </body>
-  </html>
-  
+</html>
