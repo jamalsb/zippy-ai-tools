@@ -33,3 +33,477 @@ label{display:block;margin:13px 0 7px}
 footer{text-align:center;padding:25px;color:#9ca5ba}
 @media(max-width:430px){.tools{grid-template-columns:repeat(2,1fr)}}
 </style>
+</head>
+<body>
+<header>
+<div class="logo">⚡ Zippy AI</div>
+<div>Thumbnail Studio</div>
+</header>
+
+<main>
+<h1>Professional Thumbnail Editor</h1>
+<p style="text-align:center;color:#aab2c9">Create • Edit • Move • Design</p>
+
+<div class="panel">
+<h3>📷 Background Image</h3>
+<input type="file" id="photo" accept="image/*">
+
+<h3>➕ Add New Layers</h3>
+<div class="tools">
+<button onclick="addText()">+ Text</button>
+<button onclick="addShape('rect')">+ Box</button>
+<button onclick="addShape('circle')">+ Circle</button>
+<button onclick="addShape('line')">+ Line</button>
+<button onclick="addColorLayer()">+ Color Layer</button>
+<button onclick="duplicate()">Duplicate</button>
+</div>
+</div>
+
+<div class="panel">
+<h3>🎨 Your Thumbnail</h3>
+<p class="small">کسی بھی Layer کو انگلی سے پکڑ کر منتقل کریں۔ منتخب Layer کو نیچے سے ایڈٹ کریں۔</p>
+<canvas id="canvas" width="1280" height="720"></canvas>
+<p class="small">Canvas: 1280 × 720 pixels</p>
+</div>
+
+<div class="panel">
+<h3>📚 Layers Panel</h3>
+<div id="layers"></div>
+</div>
+
+<div class="panel">
+<h3>✏️ Edit Selected Layer</h3>
+<div id="editor">
+<p class="small">پہلے کوئی Layer منتخب کریں۔</p>
+</div>
+</div>
+
+<div class="panel">
+<h3>💾 Save Your Design</h3>
+<button class="full" onclick="download()">⬇ Download PNG</button>
+<button class="full secondary" onclick="reset()">Reset Design</button>
+</div>
+</main>
+
+<footer>© 2026 Zippy AI Tools</footer>
+
+<script>
+const W=1280,H=720;
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
+let layers=[];
+let selected=null;
+let photo=null;
+let dragging=false;
+let exporting=false;
+let offsetX=0,offsetY=0;
+
+function uid(){return Date.now()+Math.random();}
+function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
+function current(){return layers.find(l=>l.id===selected);}
+
+function addText(){
+const l={
+id:uid(),type:"text",text:"YOUR TEXT",
+x:W/2,y:H/2,size:90,
+color:"#ffffff",bg:"transparent",
+font:"Arial",bold:true,
+stroke:"#000000",strokeWidth:4,
+opacity:1
+};
+layers.push(l);
+select(l.id);
+}
+
+function addShape(type){
+const l={
+id:uid(),type,x:W/2,y:H/2,
+w:type==="line"?500:400,
+h:200,
+color:"#8055e9",opacity:1
+};
+layers.push(l);
+select(l.id);
+}
+
+function addColorLayer(){
+const l={
+id:uid(),type:"rect",x:W/2,y:H/2,
+w:W,h:H,
+color:"#8055e9",opacity:0.5
+};
+layers.push(l);
+select(l.id);
+}
+
+function select(id){
+selected=id;
+draw();
+renderLayers();
+renderEditor();
+}
+
+function renderLayers(){
+const box=document.getElementById("layers");
+box.innerHTML="";
+[...layers].reverse().forEach(l=>{
+const div=document.createElement("div");
+div.className="layer"+(l.id===selected?" active":"");
+
+const name=l.type==="text"?(l.text||"Text"):l.type==="rect"&&l.w===W&&l.h===H?"Color Layer":l.type;
+const label=document.createElement("span");
+label.textContent=name.slice(0,22);
+label.style.flex="1";
+label.onclick=()=>select(l.id);
+
+const up=document.createElement("button");
+up.textContent="↑";
+up.onclick=()=>moveLayer(l.id,1);
+
+const down=document.createElement("button");
+down.textContent="↓";
+down.onclick=()=>moveLayer(l.id,-1);
+
+const del=document.createElement("button");
+del.textContent="✕";
+del.className="danger";
+del.onclick=()=>removeLayer(l.id);
+
+div.append(label,up,down,del);
+box.append(div);
+});
+}
+
+function addField(box,labelText,element){
+const wrap=document.createElement("div");
+const title=document.createElement("label");
+title.textContent=labelText;
+wrap.append(title,element);
+box.append(wrap);
+}
+
+function colorInput(value,change){
+const el=document.createElement("input");
+el.type="color";
+el.value=value;
+el.addEventListener("input",()=>{
+change(el.value);
+draw();
+});
+return el;
+}
+
+function slider(value,min,max,step,change){
+const el=document.createElement("input");
+el.type="range";
+el.min=min;
+el.max=max;
+el.step=step;
+el.value=value;
+el.addEventListener("input",()=>{
+change(parseFloat(el.value));
+draw();
+});
+return el;
+}
+
+function renderEditor(){
+const l=current();
+const box=document.getElementById("editor");
+box.innerHTML="";
+
+if(!l){
+box.innerHTML='<p class="small">پہلے کوئی Layer منتخب کریں۔</p>';
+return;
+}
+
+if(l.type==="text"){
+const text=document.createElement("textarea");
+text.value=l.text;
+text.oninput=()=>{
+l.text=text.value;
+draw();
+renderLayers();
+};
+addField(box,"Text Content",text);
+
+addField(box,"Text Color",colorInput(l.color,v=>l.color=v));
+
+const bgOn=document.createElement("input");
+bgOn.type="checkbox";
+bgOn.checked=l.bg!=="transparent";
+
+const bgColor=colorInput(l.bg==="transparent"?"#8055e9":l.bg,v=>l.bg=v);
+bgColor.disabled=!bgOn.checked;
+
+bgOn.onchange=()=>{
+l.bg=bgOn.checked?bgColor.value:"transparent";
+bgColor.disabled=!bgOn.checked;
+draw();
+};
+
+addField(box,"Show Text Background",bgOn);
+addField(box,"Text Background Color",bgColor);
+
+const font=document.createElement("select");
+["Arial","Impact","Georgia","Verdana","Trebuchet MS","Courier New"].forEach(f=>{
+const o=document.createElement("option");
+o.value=f;
+o.textContent=f;
+font.append(o);
+});
+font.value=l.font;
+font.onchange=()=>{
+l.font=font.value;
+draw();
+};
+addField(box,"Font Style",font);
+
+addField(box,"Font Size",slider(l.size,10,300,1,v=>l.size=v));
+addField(box,"Outline Color",colorInput(l.stroke,v=>l.stroke=v));
+addField(box,"Outline Width",slider(l.strokeWidth,0,20,1,v=>l.strokeWidth=v));
+}else{
+addField(box,"Layer Color",colorInput(l.color,v=>l.color=v));
+
+if(l.type==="line"){
+addField(box,"Line Length",slider(l.w,20,W,1,v=>l.w=v));
+}else{
+addField(box,"Width",slider(l.w,10,W,1,v=>l.w=v));
+addField(box,"Height",slider(l.h,10,H,1,v=>l.h=v));
+}
+}
+
+addField(box,"Horizontal Position",slider(l.x,0,W,1,v=>l.x=v));
+addField(box,"Vertical Position",slider(l.y,0,H,1,v=>l.y=v));
+addField(box,"Opacity",slider(l.opacity,0,1,0.01,v=>l.opacity=v));
+
+const buttons=document.createElement("div");
+buttons.className="row";
+buttons.style.marginTop="12px";
+
+const dup=document.createElement("button");
+dup.textContent="Duplicate";
+dup.onclick=duplicate;
+
+const del=document.createElement("button");
+del.textContent="Delete";
+del.className="danger";
+del.onclick=()=>removeLayer(l.id);
+
+buttons.append(dup,del);
+box.append(buttons);
+}
+
+function moveLayer(id,direction){
+const i=layers.findIndex(l=>l.id===id);
+const j=i+direction;
+if(j<0||j>=layers.length)return;
+[layers[i],layers[j]]=[layers[j],layers[i]];
+draw();
+renderLayers();
+}
+
+function removeLayer(id){
+layers=layers.filter(l=>l.id!==id);
+selected=null;
+draw();
+renderLayers();
+renderEditor();
+}
+
+function duplicate(){
+const l=current();
+if(!l)return;
+const copy={...l,id:uid(),x:l.x+35,y:l.y+35};
+layers.push(copy);
+select(copy.id);
+}
+
+// Text box size, used for drawing the background, the selection frame and hit testing
+function textBounds(l){
+ctx.font=(l.bold?"bold ":"")+l.size+"px "+l.font;
+const lines=l.text.split("\n");
+const lineHeight=l.size*1.2;
+const maxWidth=Math.max(10,...lines.map(t=>ctx.measureText(t).width));
+const w=Math.min(maxWidth+35,1200);
+const h=lines.length*lineHeight+12;
+return {x:l.x-w/2,y:l.y-h/2,w,h};
+}
+
+function bounds(l){
+if(l.type==="text")return textBounds(l);
+if(l.type==="line")return {x:l.x-l.w/2,y:l.y-12,w:l.w,h:24};
+return {x:l.x-l.w/2,y:l.y-l.h/2,w:l.w,h:l.h};
+}
+
+function drawLayer(l){
+ctx.save();
+ctx.globalAlpha=clamp(Number(l.opacity??1),0,1);
+
+if(l.type==="text"){
+ctx.textAlign="center";
+ctx.textBaseline="middle";
+
+const b=textBounds(l);
+if(l.bg!=="transparent"){
+ctx.fillStyle=l.bg;
+ctx.fillRect(b.x,b.y,b.w,b.h);
+}
+
+const lines=l.text.split("\n");
+const lineHeight=l.size*1.2;
+lines.forEach((line,i)=>{
+const y=l.y+(i-(lines.length-1)/2)*lineHeight;
+if(l.strokeWidth>0){
+ctx.lineWidth=l.strokeWidth;
+ctx.strokeStyle=l.stroke;
+ctx.strokeText(line,l.x,y,1180);
+}
+ctx.fillStyle=l.color;
+ctx.fillText(line,l.x,y,1180);
+});
+}else{
+ctx.fillStyle=l.color;
+ctx.strokeStyle=l.color;
+ctx.lineWidth=8;
+
+if(l.type==="rect"){
+ctx.fillRect(l.x-l.w/2,l.y-l.h/2,l.w,l.h);
+}
+if(l.type==="circle"){
+ctx.beginPath();
+ctx.ellipse(l.x,l.y,l.w/2,l.h/2,0,0,Math.PI*2);
+ctx.fill();
+}
+if(l.type==="line"){
+ctx.beginPath();
+ctx.moveTo(l.x-l.w/2,l.y);
+ctx.lineTo(l.x+l.w/2,l.y);
+ctx.stroke();
+}
+}
+
+ctx.restore();
+}
+
+function drawSelection(l){
+const b=bounds(l);
+ctx.save();
+ctx.strokeStyle="#bd99ff";
+ctx.lineWidth=4;
+ctx.setLineDash([12,8]);
+ctx.strokeRect(b.x-10,b.y-10,b.w+20,b.h+20);
+ctx.restore();
+}
+
+function draw(){
+ctx.clearRect(0,0,W,H);
+ctx.fillStyle="#242344";
+ctx.fillRect(0,0,W,H);
+
+if(photo){
+const s=Math.max(W/photo.width,H/photo.height);
+const w=photo.width*s,h=photo.height*s;
+ctx.drawImage(photo,(W-w)/2,(H-h)/2,w,h);
+}
+
+layers.forEach(drawLayer);
+
+const l=current();
+if(l && !exporting)drawSelection(l);
+}
+
+function coords(e){
+const r=canvas.getBoundingClientRect();
+return {
+x:(e.clientX-r.left)*W/r.width,
+y:(e.clientY-r.top)*H/r.height
+};
+}
+
+function hit(l,p){
+const b=bounds(l);
+return p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h;
+}
+
+canvas.addEventListener("pointerdown",e=>{
+const p=coords(e);
+for(let i=layers.length-1;i>=0;i--){
+const l=layers[i];
+if(hit(l,p)){
+select(l.id);
+dragging=true;
+offsetX=p.x-l.x;
+offsetY=p.y-l.y;
+canvas.setPointerCapture(e.pointerId);
+return;
+}
+}
+selected=null;
+draw();
+renderLayers();
+renderEditor();
+});
+
+canvas.addEventListener("pointermove",e=>{
+if(!dragging)return;
+const p=coords(e);
+const l=current();
+if(!l)return;
+l.x=clamp(p.x-offsetX,0,W);
+l.y=clamp(p.y-offsetY,0,H);
+draw();
+});
+
+canvas.addEventListener("pointerup",()=>dragging=false);
+canvas.addEventListener("pointercancel",()=>dragging=false);
+
+document.getElementById("photo").addEventListener("change",e=>{
+const file=e.target.files[0];
+if(!file)return;
+if(!file.type.startsWith("image/")){
+alert("Select an image");
+return;
+}
+const reader=new FileReader();
+reader.onload=ev=>{
+const img=new Image();
+img.onload=()=>{
+photo=img;
+draw();
+};
+img.src=ev.target.result;
+};
+reader.readAsDataURL(file);
+});
+
+function download(){
+exporting=true;
+draw();
+const url=canvas.toDataURL("image/png");
+exporting=false;
+draw();
+
+const a=document.createElement("a");
+a.download="Zippy-AI-Thumbnail.png";
+a.href=url;
+a.click();
+}
+
+function reset(){
+if(!confirm("Reset your entire design?"))return;
+layers=[];
+photo=null;
+document.getElementById("photo").value="";
+selected=null;
+draw();
+renderLayers();
+renderEditor();
+}
+
+draw();
+renderLayers();
+renderEditor();
+</script>
+</body>
+</html>
