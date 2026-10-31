@@ -52,7 +52,7 @@
     <a class="card" href="#/video">
       <div class="card-icon">🎬</div>
       <h2>AI Video Generator</h2>
-      <p>Script → storyboard → editable timeline with captions and durations. Export a real .webm.</p>
+      <p>Script → storyboard → editable timeline with captions and durations. Export a real MP4.</p>
       <span class="card-cta">Build video →</span>
     </a>
   </div>
@@ -180,7 +180,10 @@
     <div id="videoKeyNotice" class="notice warn"></div>
 
     <label for="vidScript">Script or prompt</label>
-    <textarea id="vidScript" placeholder="One line per scene. Example:\nOur new winter collection is here\nWarm fabrics, honest prices\nFree delivery across Pakistan"></textarea>
+    <textarea id="vidScript" placeholder="One line per scene. Example:
+Our new winter collection is here
+Warm fabrics, honest prices
+Free delivery across Pakistan"></textarea>
     <button class="full" id="vidStoryboard">🪄 Build storyboard from script</button>
     <p class="small">Each non-empty line becomes one scene. You can also add your own images below.</p>
   </div>
@@ -210,8 +213,8 @@
 
   <div class="panel">
     <h3>💾 Export</h3>
-    <button class="full" id="vidExport">⬇ Export video (.webm)</button>
-    <p class="small" id="vidExportStatus">Renders your timeline in real time and records it in the browser — no server, no upload.</p>
+    <button class="full" id="vidExport">⬇ Export video (MP4)</button>
+    <p class="small" id="vidExportStatus">Encodes an MP4 in your browser — no server, no upload. H.264 when your browser supports it, VP9-in-MP4 otherwise, WebM only as a last resort.</p>
   </div>
 </section>
 
@@ -245,6 +248,7 @@
 <div class="toast" id="toast" hidden></div>
 
 <script src="src/core.js"></script>
+<script src="src/mp4.js"></script>
 <script src="src/thumbnail.js"></script>
 <script src="src/image-creator.js"></script>
 <script src="src/video-studio.js"></script>
