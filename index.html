@@ -180,10 +180,7 @@
     <div id="videoKeyNotice" class="notice warn"></div>
 
     <label for="vidScript">Script or prompt</label>
-    <textarea id="vidScript" placeholder="One line per scene. Example:
-Our new winter collection is here
-Warm fabrics, honest prices
-Free delivery across Pakistan"></textarea>
+    <textarea id="vidScript" placeholder="One line per scene. Example:\nOur new winter collection is here\nWarm fabrics, honest prices\nFree delivery across Pakistan"></textarea>
     <button class="full" id="vidStoryboard">🪄 Build storyboard from script</button>
     <p class="small">Each non-empty line becomes one scene. You can also add your own images below.</p>
   </div>
@@ -214,6 +211,17 @@ Free delivery across Pakistan"></textarea>
   <div class="panel">
     <h3>💾 Export</h3>
     <button class="full" id="vidExport">⬇ Export video (MP4)</button>
+
+    <div class="progress" id="vidProgress" hidden>
+      <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-labelledby="vidProgressText">
+        <div class="progress-fill" id="vidProgressFill"></div>
+      </div>
+      <div class="progress-meta">
+        <span id="vidProgressText">Preparing…</span>
+        <button type="button" class="secondary progress-cancel" id="vidCancel">✕ Cancel</button>
+      </div>
+    </div>
+
     <p class="small" id="vidExportStatus">Encodes an MP4 in your browser — no server, no upload. H.264 when your browser supports it, VP9-in-MP4 otherwise, WebM only as a last resort.</p>
   </div>
 </section>
