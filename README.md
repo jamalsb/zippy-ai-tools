@@ -6,7 +6,7 @@ Three browser-based creative tools in one static site — **no build step, no fr
 |---|---|
 | 🎨 **Thumbnail Studio** | Layer-based 1280×720 editor. Text, boxes, circles, lines, colour layers. Drag to position, undo/redo, autosave, PNG export at 1× or 2×. |
 | 🖼️ **AI Image Creator** | Prompt → image. Aspect ratio (1:1 / 16:9 / 9:16), style presets, loading state, download. Real generation with your own API key; **demo mode** without one. |
-| 🎬 **AI Video Generator & Editor** | Script → storyboard → editable timeline. Add images or colour cards, reorder, set per-scene duration, caption overlays, live preview, and export a real **MP4** (H.264 where available). |
+| 🎬 **AI Video Generator & Editor** | Script → storyboard → editable timeline. Add images or colour cards, reorder, set per-scene duration, caption overlays, live preview, and export a real **MP4** (H.264 where available) with a live progress bar and cancel button. |
 
 Live: **https://zippy-ai-tools.vercel.app**
 
@@ -41,6 +41,18 @@ Encoding happens entirely in the browser. The tool picks the best path your brow
 **No server, no upload, no ffmpeg, no CDN.** The MP4 container is written by `src/mp4.js` — about 190 lines of plain JavaScript that emit the ISO-BMFF boxes (`ftyp`, `moov`, `mdat`) directly. One video track, constant frame duration, `faststart` (the `moov` index lands before the media data so the file starts playing before it has fully downloaded).
 
 Export is **not real-time** on tiers 1–2: every frame is rendered and encoded as fast as the CPU allows, so a 20-second timeline typically exports in a few seconds. The status line reports file size, duration, resolution, frame rate, elapsed time, and which codec path was used.
+
+### Export progress
+
+Long timelines take a while, so the export panel shows a live progress bar instead of going quiet:
+
+- **Percentage** — frames encoded so far ÷ total frames, driving both the bar width and the button label (`⏳ Encoding… 45%`).
+- **ETA** — the average time per frame measured so far, multiplied by the frames still to go (`~12s left`). It settles within the first batch and gets more accurate as the run continues.
+- **Frame counter** — the raw `230/417 frames` figure under the bar, so you can sanity-check the estimate yourself.
+- **Done state** — the bar turns green at 100% and shows the finished file size and duration (`Done · 4.33 MB · 13.9s`), then clears itself after a moment. The status line stays with the full details.
+- **Cancel** — a `✕ Cancel` button sits beside the bar. It stops the job immediately, releases the encoder, hides the bar, and downloads nothing; your timeline is untouched and you can export again straight away. The button disappears once the file is written, because there is nothing left to cancel.
+
+Tier 3 is different: MediaRecorder records in real time, so there are no frames to count. That path reports progress as elapsed recording time against the timeline duration (`Recording… 52% · 2.1s / 4.0s`) on the same bar, and the Cancel button works there too — it stops the recorder without downloading a partial file.
 
 If you need guaranteed H.264, export from Chrome or Edge. H.264 output is also the safest choice for Premiere, Final Cut, and older Android devices.
 
