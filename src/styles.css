@@ -148,6 +148,38 @@ label{display:block;margin:13px 0 7px;font-size:13.5px;font-weight:600;color:#cf
 }
 .toast[hidden]{display:none}
 
+/* ---------- export progress ---------- */
+.progress{margin-top:12px}
+.progress[hidden]{display:none}
+.progress-track{
+  height:10px;border-radius:99px;background:#0c1224;
+  border:1px solid var(--line);overflow:hidden;position:relative;
+}
+.progress-fill{
+  height:100%;width:0%;border-radius:99px;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  transition:width .22s ease-out;position:relative;
+}
+.progress-fill::after{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);
+  animation:progress-sheen 1.4s linear infinite;
+}
+@keyframes progress-sheen{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+.progress-meta{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin-top:8px;font-size:12.5px;color:var(--muted);
+}
+.progress-meta #vidProgressText{font-variant-numeric:tabular-nums}
+.progress-cancel{
+  padding:4px 11px;font-size:12px;border-radius:8px;flex:none;
+}
+.progress.done .progress-fill::after{animation:none}
+.progress.done .progress-fill{background:var(--ok)}
+.progress.cancelled .progress-fill{background:var(--warn)}
+/* nothing left to cancel once the job is finished */
+.progress.done .progress-cancel,.progress.cancelled .progress-cancel{display:none}
+
 footer{text-align:center;padding:26px 16px;color:#7d879e;font-size:12.5px;border-top:1px solid var(--line)}
 
 @media(max-width:520px){
