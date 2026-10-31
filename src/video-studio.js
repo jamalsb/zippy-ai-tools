@@ -1,6 +1,6 @@
 /* Zippy AI Tools — AI Video Generator & Editor
-   Script -> storyboard -> editable timeline -> real .webm export.
-   Rendering is 100% client-side (canvas + MediaRecorder); nothing is uploaded.
+   Script -> storyboard -> editable timeline -> real MP4 export.
+   Rendering is 100% client-side (canvas + WebCodecs + src/mp4.js); nothing is uploaded.
 */
 window.VideoStudio = (function () {
   'use strict';
@@ -456,18 +456,186 @@ window.VideoStudio = (function () {
     updateTimeLabel();
   }
 
-  /* ---------------- export ---------------- */
+  /* ---------------- export ----------------
+     MP4 is the default target. Three tiers, best first:
+       1. WebCodecs + mp4.js  -> real H.264 MP4, encoded offline (fast)
+       2. WebCodecs VP9 + muxer  -> MP4 container with a VP9 track
+       3. MediaRecorder          -> WebM fallback only when WebCodecs is missing
+     The user gets a .mp4 unless the browser cannot produce one at all.
+  */
 
-  function pickMime() {
-    var candidates = [
-      'video/webm;codecs=vp9',
-      'video/webm;codecs=vp8',
-      'video/webm'
-    ];
-    for (var i = 0; i < candidates.length; i++) {
-      if (window.MediaRecorder && MediaRecorder.isTypeSupported(candidates[i])) return candidates[i];
+  var EXPORT_LABEL = '⬇ Export video (MP4)';
+  var FPS = 30;
+
+  function setExportBtn(disabled, label) {
+    var btn = el('vidExport');
+    if (!btn) return;
+    btn.disabled = !!disabled;
+    btn.textContent = label || EXPORT_LABEL;
+  }
+
+  function setStatus(msg) {
+    var st = el('vidExportStatus');
+    if (st) st.innerHTML = msg;
+  }
+
+  function fmtMB(bytes) {
+    return (bytes / 1048576).toFixed(2) + ' MB';
+  }
+
+  function fmtDur(sec) {
+    var m = Math.floor(sec / 60);
+    var s = sec - m * 60;
+    return m ? m + 'm ' + s.toFixed(1) + 's' : sec.toFixed(1) + 's';
+  }
+
+  /* The muxer is a plain script (src/mp4.js) loaded before this file. */
+  function loadMuxer() {
+    if (window.Mp4Muxer && typeof window.Mp4Muxer.build === 'function') {
+      return Promise.resolve(window.Mp4Muxer);
     }
-    return '';
+    return Promise.reject(new Error('MP4 muxer not loaded — check src/mp4.js'));
+  }
+
+  /* Which WebCodecs codec can we actually encode with? */
+  function pickCodec() {
+    if (typeof VideoEncoder === 'undefined' || typeof VideoFrame === 'undefined') {
+      return Promise.resolve(null);
+    }
+    var cands = [
+      { codec: 'avc1.42001E', fam: 'avc' },
+      { codec: 'avc1.42E01E', fam: 'avc' },
+      { codec: 'avc1.4D401E', fam: 'avc' },
+      { codec: 'avc1.640028', fam: 'avc' },
+      { codec: 'vp09.00.10.08', fam: 'vp9' }
+    ];
+    var i = 0;
+    function next() {
+      if (i >= cands.length) return Promise.resolve(null);
+      var c = cands[i++];
+      return VideoEncoder.isConfigSupported({
+        codec: c.codec, width: W, height: H, bitrate: 5000000, framerate: FPS
+      }).then(function (r) {
+        return r && r.supported ? c : next();
+      }).catch(function () { return next(); });
+    }
+    return next();
+  }
+
+  /* Render every frame off-line and encode it — much faster than real time. */
+  function encodeWithWebCodecs(codec) {
+    return loadMuxer().then(function (muxer) {
+      var encErr = null;
+      var chunks = [];
+      var description = null;
+
+      var encoder = new VideoEncoder({
+        output: function (chunk, meta) {
+          var buf = new Uint8Array(chunk.byteLength);
+          chunk.copyTo(buf);
+          chunks.push({ data: buf, isKey: chunk.type === 'key' });
+          /* H.264 needs the SPS/PPS from the decoder config to play. */
+          if (!description && meta && meta.decoderConfig && meta.decoderConfig.description) {
+            var d = meta.decoderConfig.description;
+            description = d instanceof Uint8Array ? d : new Uint8Array(d);
+          }
+        },
+        error: function (e) { encErr = e; }
+      });
+
+      encoder.configure({
+        codec: codec.codec, width: W, height: H,
+        bitrate: 5000000, framerate: FPS, latencyMode: 'quality'
+      });
+
+      var total = totalDuration();
+      var totalFrames = Math.max(1, Math.round(total * FPS));
+      var i = 0;
+      setStatus('Encoding ' + totalFrames + ' frames at ' + W + '×' + H + '…');
+
+      function step() {
+        if (encErr) return Promise.reject(encErr);
+        var until = Math.min(totalFrames, i + 15);
+        while (i < until) {
+          var t = i / FPS;
+          drawAt(Math.min(t, total - 0.001));
+          var frame = new VideoFrame(canvas, {
+            timestamp: Math.round(t * 1e6),
+            duration: Math.round(1e6 / FPS)
+          });
+          encoder.encode(frame, { keyFrame: i % (FPS * 2) === 0 });
+          frame.close();
+          i++;
+        }
+        var pct = Math.round((i / totalFrames) * 100);
+        setStatus('Encoding… ' + pct + '% (' + i + '/' + totalFrames + ' frames)');
+        if (i < totalFrames) {
+          return new Promise(function (r) { setTimeout(r, 0); }).then(step);
+        }
+        return encoder.flush().then(function () {
+          encoder.close();
+          if (encErr) throw encErr;
+          if (!chunks.length) throw new Error('The encoder produced no frames.');
+
+          /* The muxer writes ISO-BMFF boxes; every frame is one sample. */
+          return muxer.build({
+            codec: codec.fam === 'avc' ? 'avc' : 'vp9',
+            width: W, height: H, fps: FPS,
+            description: description,
+            chunks: chunks
+          });
+        });
+      }
+      return step();
+    });
+  }
+
+  /* MediaRecorder fallback: real time, WebM only. */
+  function encodeWithMediaRecorder() {
+    return new Promise(function (resolve, reject) {
+      var candidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+      var mime = '';
+      for (var i = 0; i < candidates.length; i++) {
+        if (window.MediaRecorder && MediaRecorder.isTypeSupported(candidates[i])) {
+          mime = candidates[i];
+          break;
+        }
+      }
+      if (!mime) return reject(new Error('This browser cannot record canvas video.'));
+      if (!canvas.captureStream) return reject(new Error('Canvas capture is not supported.'));
+
+      var stream = canvas.captureStream(FPS);
+      var chunks = [];
+      var rec;
+      try {
+        rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 5000000 });
+      } catch (e) { return reject(e); }
+
+      rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+      rec.onstop = function () {
+        stream.getTracks().forEach(function (tr) { tr.stop(); });
+        resolve({ bytes: null, blob: new Blob(chunks, { type: mime }), mime: mime });
+      };
+
+      var total = totalDuration();
+      rec.start(250);
+      var t0 = performance.now();
+      setStatus('Recording ' + total.toFixed(1) + 's in real time (WebM fallback)…');
+
+      function frame(now) {
+        var t = (now - t0) / 1000;
+        if (t >= total) {
+          drawAt(total - 0.001);
+          setTimeout(function () { try { rec.stop(); } catch (e) { /* already stopped */ } }, 300);
+          return;
+        }
+        drawAt(t);
+        elapsed = t;
+        updateTimeLabel();
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    });
   }
 
   function exportVideo() {
@@ -476,77 +644,70 @@ window.VideoStudio = (function () {
       Zippy.toast('Add at least one scene first.');
       return;
     }
-    if (!window.MediaRecorder || !canvas.captureStream) {
-      var st = el('vidExportStatus');
-      if (st) st.textContent = 'This browser cannot record canvas video. Try Chrome, Edge or Firefox.';
-      Zippy.toast('Recording is not supported in this browser.');
+    if (totalDuration() <= 0) {
+      Zippy.toast('Set a duration on at least one scene.');
       return;
     }
 
-    var mime = pickMime();
-    if (!mime) {
-      Zippy.toast('No supported WebM codec found in this browser.');
-      return;
-    }
-
-    var status = el('vidExportStatus');
-    var btn = el('vidExport');
     recording = true;
-    if (btn) { btn.disabled = true; btn.textContent = '⏺ Recording…'; }
+    setExportBtn(true, '⏳ Exporting…');
+    setStatus('Preparing export…');
 
-    var stream = canvas.captureStream(30);
-    var chunks = [];
-    var rec;
+    var started = performance.now();
+    var path = '';
 
-    try {
-      rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 4000000 });
-    } catch (e) {
-      recording = false;
-      if (btn) { btn.disabled = false; btn.textContent = '⬇ Export video (.webm)'; }
-      if (status) status.textContent = 'Could not start the recorder: ' + e.message;
-      return;
-    }
+    pickCodec()
+      .then(function (codec) {
+        if (codec) {
+          path = codec.fam === 'avc' ? 'webcodecs-h264' : 'webcodecs-vp9';
+          return encodeWithWebCodecs(codec).then(function (bytes) {
+            return { bytes: bytes };
+          });
+        }
+        path = 'mediarecorder-webm';
+        return encodeWithMediaRecorder();
+      })
+      .then(function (res) {
+        var isMp4 = !!res.bytes;
+        var name = 'zippy-ai-video-' + Date.now() + (isMp4 ? '.mp4' : '.webm');
+        var blob = isMp4 ? new Blob([res.bytes], { type: 'video/mp4' }) : res.blob;
+        var size = isMp4 ? res.bytes.length : blob.size;
+        Zippy.downloadBlob(blob, name);
 
-    rec.ondataavailable = function (e) {
-      if (e.data && e.data.size) chunks.push(e.data);
-    };
+        var secs = totalDuration();
+        var took = ((performance.now() - started) / 1000).toFixed(1);
 
-    rec.onstop = function () {
-      recording = false;
-      if (btn) { btn.disabled = false; btn.textContent = '⬇ Export video (.webm)'; }
-      var blob = new Blob(chunks, { type: mime });
-      Zippy.downloadBlob(blob, 'zippy-ai-video-' + Date.now() + '.webm');
-      if (status) {
-        status.textContent = 'Exported ' + (blob.size / 1048576).toFixed(1) + ' MB · ' +
-          totalDuration().toFixed(1) + 's · ' + mime;
-      }
-      Zippy.toast('Video exported');
-      drawAt(0);
-    };
+        var noteStyle = ' style="display:block;margin-top:6px;font-size:12px;color:#f0cd8f;opacity:.9"';
+        var note = '';
+        if (path === 'webcodecs-vp9') {
+          note = '<span' + noteStyle + '>Codec note: this browser exposes no H.264 encoder, so the file is ' +
+                 'MP4 with a VP9 video track. It plays in Chrome, Edge, Firefox and Safari 17+, but some ' +
+                 'older editors prefer H.264 — export from Chrome for that.</span>';
+        } else if (path === 'mediarecorder-webm') {
+          note = '<span' + noteStyle + '>Fallback: WebCodecs is unavailable in this browser, so the file is ' +
+                 'WebM, not MP4. Export from Chrome or Edge to get MP4.</span>';
+        }
 
-    rec.start(250);
-
-    /* render the timeline in real time so the recording matches the preview */
-    var total = totalDuration();
-    var t0 = performance.now();
-    if (status) status.textContent = 'Recording ' + total.toFixed(1) + 's in real time — keep this tab visible…';
-
-    function frame(now) {
-      var t = (now - t0) / 1000;
-      if (t >= total) {
-        drawAt(total - 0.001);
-        setTimeout(function () {
-          try { rec.stop(); } catch (e) { /* already stopped */ }
-          stream.getTracks().forEach(function (tr) { tr.stop(); });
-        }, 300);
-        return;
-      }
-      drawAt(t);
-      elapsed = t;
-      updateTimeLabel();
-      requestAnimationFrame(frame);
-    }
-    requestAnimationFrame(frame);
+        setStatus(
+          '<strong>' + (isMp4 ? 'MP4' : 'WebM') + ' exported</strong> · ' +
+          fmtMB(size) + ' · ' + fmtDur(secs) + ' · ' +
+          W + '×' + H + ' · ' + FPS + ' fps · took ' + took + 's' +
+          note
+        );
+        Zippy.toast(isMp4 ? 'MP4 exported' : 'WebM exported (fallback)');
+      })
+      .catch(function (e) {
+        setStatus('Export failed: ' + (e && e.message ? e.message : String(e)) +
+          '. Try Chrome or Edge for MP4 output.');
+        Zippy.toast('Export failed');
+      })
+      .then(function () {
+        recording = false;
+        setExportBtn(false, EXPORT_LABEL);
+        drawAt(0);
+        elapsed = 0;
+        updateTimeLabel();
+      });
   }
 
   /* ---------------- boot ---------------- */
@@ -567,7 +728,7 @@ window.VideoStudio = (function () {
         notice.textContent = 'Video API key detected. Note: this build renders and exports locally — the key is reserved for a future hosted video model.';
       } else {
         notice.className = 'notice warn';
-        notice.textContent = 'No video API key set. This tool works fully offline: it builds a storyboard from your script and exports a real .webm from the browser. No key needed.';
+        notice.textContent = 'No video API key set. This tool works fully offline: it builds a storyboard from your script and exports a real MP4 from the browser. No key needed.';
       }
     }
 
