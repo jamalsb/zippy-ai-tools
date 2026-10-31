@@ -458,7 +458,7 @@ window.VideoStudio = (function () {
 
   /* ---------------- export ----------------
      MP4 is the default target. Three tiers, best first:
-       1. WebCodecs + mp4.js  -> real H.264 MP4, encoded offline (fast)
+       1. WebCodecs + mp4-muxer  -> real H.264 MP4, encoded offline (fast)
        2. WebCodecs VP9 + muxer  -> MP4 container with a VP9 track
        3. MediaRecorder          -> WebM fallback only when WebCodecs is missing
      The user gets a .mp4 unless the browser cannot produce one at all.
@@ -477,6 +477,90 @@ window.VideoStudio = (function () {
   function setStatus(msg) {
     var st = el('vidExportStatus');
     if (st) st.innerHTML = msg;
+  }
+
+  /* ---------------- export progress ---------------- */
+
+  var lastPct = 0;
+  var finishProgressTimer = null;
+  var cancelRequested = false;
+
+  function cancelledError() {
+    var e = new Error('Export cancelled');
+    e.cancelled = true;
+    return e;
+  }
+
+  function showProgress() {
+    if (finishProgressTimer) { clearTimeout(finishProgressTimer); finishProgressTimer = null; }
+    var wrap = el('vidProgress');
+    if (wrap) {
+      wrap.hidden = false;
+      wrap.className = 'progress';
+    }
+    lastPct = 0;
+    setProgress(0, 'Preparing…');
+  }
+
+  function hideProgress() {
+    if (finishProgressTimer) { clearTimeout(finishProgressTimer); finishProgressTimer = null; }
+    var wrap = el('vidProgress');
+    if (wrap) {
+      wrap.hidden = true;
+      wrap.className = 'progress';
+      var track = wrap.querySelector('.progress-track');
+      if (track) track.setAttribute('aria-valuenow', '0');
+    }
+    var fill = el('vidProgressFill');
+    if (fill) fill.style.width = '0%';
+  }
+
+  /* pct drives the bar width; text is the label under it; cls switches the bar
+     to its finished (green) or cancelled (amber) look. Passing cls = null
+     leaves the current class alone. */
+  function setProgress(pct, text, cls) {
+    var n = Math.round(Number(pct) || 0);
+    if (n < 0) n = 0;
+    if (n > 100) n = 100;
+    lastPct = n;
+
+    var fill = el('vidProgressFill');
+    if (fill) fill.style.width = n + '%';
+
+    var wrap = el('vidProgress');
+    if (wrap) {
+      var track = wrap.querySelector('.progress-track');
+      if (track) track.setAttribute('aria-valuenow', String(n));
+      if (cls !== null && cls !== undefined) wrap.className = 'progress' + (cls ? ' ' + cls : '');
+    }
+
+    var label = el('vidProgressText');
+    if (label && text !== undefined && text !== null) label.textContent = text;
+  }
+
+  function fmtEta(seconds) {
+    if (!isFinite(seconds) || seconds < 0) return '';
+    if (seconds < 1) return 'almost done';
+    if (seconds < 60) return '~' + Math.round(seconds) + 's left';
+    var m = Math.floor(seconds / 60);
+    var s = Math.round(seconds % 60);
+    return '~' + m + 'm ' + s + 's left';
+  }
+
+  /* Called once per encode batch: percentage from the frame count, ETA from the
+     average time per frame so far. Frames fill 0–99%; the last 1% is the mux
+     step, so the bar never jumps backwards. */
+  function reportFrameProgress(done, total, startedAt) {
+    var ratio = done / total;
+    var framePct = Math.min(99, Math.round(ratio * 100));
+    var text = 'Encoding… ' + framePct + '% · ' + done + '/' + total + ' frames';
+    if (done > 0 && done < total) {
+      var perFrame = (performance.now() - startedAt) / done;
+      var eta = fmtEta((perFrame * (total - done)) / 1000);
+      if (eta) text += ' · ' + eta;
+    }
+    setProgress(ratio * 99, text);
+    setExportBtn(true, '⏳ Encoding… ' + framePct + '%');
   }
 
   function fmtMB(bytes) {
@@ -551,11 +635,19 @@ window.VideoStudio = (function () {
       var total = totalDuration();
       var totalFrames = Math.max(1, Math.round(total * FPS));
       var i = 0;
+      var encStart = performance.now();
       setStatus('Encoding ' + totalFrames + ' frames at ' + W + '×' + H + '…');
+      setProgress(0, 'Encoding ' + totalFrames + ' frames at ' + W + '×' + H + '…');
 
       function step() {
+        if (cancelRequested) {
+          try { encoder.close(); } catch (e) { /* already closed */ }
+          return Promise.reject(cancelledError());
+        }
         if (encErr) return Promise.reject(encErr);
-        var until = Math.min(totalFrames, i + 15);
+        /* 10 frames per batch: small enough for a smooth bar, big enough to
+           stay fast on long timelines. */
+        var until = Math.min(totalFrames, i + 10);
         while (i < until) {
           var t = i / FPS;
           drawAt(Math.min(t, total - 0.001));
@@ -567,13 +659,15 @@ window.VideoStudio = (function () {
           frame.close();
           i++;
         }
-        var pct = Math.round((i / totalFrames) * 100);
-        setStatus('Encoding… ' + pct + '% (' + i + '/' + totalFrames + ' frames)');
+        reportFrameProgress(i, totalFrames, encStart);
         if (i < totalFrames) {
           return new Promise(function (r) { setTimeout(r, 0); }).then(step);
         }
+        setProgress(99, 'Finalising MP4… ' + totalFrames + ' frames encoded');
+        setExportBtn(true, '⏳ Writing MP4…');
         return encoder.flush().then(function () {
           encoder.close();
+          if (cancelRequested) throw cancelledError();
           if (encErr) throw encErr;
           if (!chunks.length) throw new Error('The encoder produced no frames.');
 
@@ -621,10 +715,18 @@ window.VideoStudio = (function () {
       rec.start(250);
       var t0 = performance.now();
       setStatus('Recording ' + total.toFixed(1) + 's in real time (WebM fallback)…');
+      setProgress(0, 'Recording 0.0s / ' + total.toFixed(1) + 's (real time)…');
 
       function frame(now) {
+        if (cancelRequested) {
+          try { rec.onstop = null; rec.stop(); } catch (e) { /* already stopped */ }
+          stream.getTracks().forEach(function (tr) { tr.stop(); });
+          return reject(cancelledError());
+        }
         var t = (now - t0) / 1000;
         if (t >= total) {
+          setProgress(99, 'Finalising WebM…');
+          setExportBtn(true, '⏳ Writing WebM…');
           drawAt(total - 0.001);
           setTimeout(function () { try { rec.stop(); } catch (e) { /* already stopped */ } }, 300);
           return;
@@ -632,6 +734,10 @@ window.VideoStudio = (function () {
         drawAt(t);
         elapsed = t;
         updateTimeLabel();
+        var pct = Math.min(98, (t / total) * 100);
+        setProgress(pct, 'Recording… ' + Math.round(pct) + '% · ' +
+          t.toFixed(1) + 's / ' + total.toFixed(1) + 's');
+        setExportBtn(true, '⏳ Recording… ' + Math.round(pct) + '%');
         requestAnimationFrame(frame);
       }
       requestAnimationFrame(frame);
@@ -650,8 +756,10 @@ window.VideoStudio = (function () {
     }
 
     recording = true;
+    cancelRequested = false;
     setExportBtn(true, '⏳ Exporting…');
     setStatus('Preparing export…');
+    showProgress();
 
     var started = performance.now();
     var path = '';
@@ -688,6 +796,11 @@ window.VideoStudio = (function () {
                  'WebM, not MP4. Export from Chrome or Edge to get MP4.</span>';
         }
 
+        setProgress(100, 'Done · ' + fmtMB(size) + ' · ' + fmtDur(secs), 'done');
+        setExportBtn(false, EXPORT_LABEL);
+        /* Leave the full bar up briefly so the finish is visible, then clear it. */
+        finishProgressTimer = setTimeout(hideProgress, 1200);
+
         setStatus(
           '<strong>' + (isMp4 ? 'MP4' : 'WebM') + ' exported</strong> · ' +
           fmtMB(size) + ' · ' + fmtDur(secs) + ' · ' +
@@ -697,12 +810,19 @@ window.VideoStudio = (function () {
         Zippy.toast(isMp4 ? 'MP4 exported' : 'WebM exported (fallback)');
       })
       .catch(function (e) {
+        hideProgress();
+        if (e && e.cancelled) {
+          setStatus('Export cancelled — nothing was downloaded. Your timeline is untouched.');
+          Zippy.toast('Export cancelled');
+          return;
+        }
         setStatus('Export failed: ' + (e && e.message ? e.message : String(e)) +
           '. Try Chrome or Edge for MP4 output.');
         Zippy.toast('Export failed');
       })
       .then(function () {
         recording = false;
+        cancelRequested = false;
         setExportBtn(false, EXPORT_LABEL);
         drawAt(0);
         elapsed = 0;
@@ -752,6 +872,14 @@ window.VideoStudio = (function () {
     if (p) p.onclick = play;
     if (s) s.onclick = function () { stop(); elapsed = 0; drawAt(0); updateTimeLabel(); };
     if (ex) ex.onclick = exportVideo;
+
+    var cx = el('vidCancel');
+    if (cx) cx.onclick = function () {
+      if (!recording) { hideProgress(); return; }
+      cancelRequested = true;
+      setProgress(lastPct, 'Cancelling…');
+      setExportBtn(true, '⏳ Cancelling…');
+    };
 
     renderTimeline();
     drawAt(0);
