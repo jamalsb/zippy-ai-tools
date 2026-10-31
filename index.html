@@ -3,507 +3,251 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Zippy AI - Layer Thumbnail Editor</title>
-<style>
-*{box-sizing:border-box}
-body{margin:0;background:#090d1b;color:white;font-family:Arial}
-header{background:#11172b;padding:18px;display:flex;justify-content:space-between}
-.logo{font-size:23px;font-weight:bold;color:#b18aff}
-main{max-width:900px;margin:auto;padding:16px}
-h1{text-align:center;color:#c2a5ff}
-.panel{background:#151c32;padding:16px;border-radius:15px;margin:15px 0}
-button{background:#8055e9;color:white;border:0;border-radius:8px;padding:12px;font-weight:bold;cursor:pointer}
-button:active{opacity:.7}
-input,select{width:100%;padding:11px;background:#0c1224;color:white;border:1px solid #424d6c;border-radius:8px}
-textarea{width:100%;height:85px;padding:12px;background:#0c1224;color:white;border:1px solid #424d6c;border-radius:8px}
-input[type=color]{height:43px;padding:3px}
-input[type=range]{padding:0}
-input[type=checkbox]{width:22px;height:22px}
-label{display:block;margin:13px 0 7px}
-.row{display:grid;grid-template-columns:1fr 1fr;gap:9px}
-.tools{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-#canvas{width:100%;height:auto;display:block;background:#252344;border-radius:9px;touch-action:none;margin-top:12px}
-.layer{background:#27314d;padding:10px;margin:7px 0;border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:5px}
-.layer button{padding:8px}
-.layer.active{outline:2px solid #a783ff}
-.small{font-size:12px;color:#b7bfd2}
-.full{width:100%;margin-top:10px}
-.danger{background:#b72d46}
-.secondary{background:#34415f}
-footer{text-align:center;padding:25px;color:#9ca5ba}
-@media(max-width:430px){.tools{grid-template-columns:repeat(2,1fr)}}
-</style>
+<title>Zippy AI Tools — Thumbnail, Image &amp; Video Studio</title>
+<meta name="description" content="Zippy AI Tools: a free browser-based thumbnail editor, AI image creator and AI video generator/editor. No build step, no signup.">
+<meta property="og:title" content="Zippy AI Tools — Thumbnail, Image &amp; Video Studio">
+<meta property="og:description" content="Create thumbnails, AI images and videos right in your browser.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#090d1b">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%238055e9'/%3E%3Ctext x='50' y='72' font-size='62' text-anchor='middle' fill='white'%3E%E2%9A%A1%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="src/styles.css">
 </head>
 <body>
-<header>
-<div class="logo">⚡ Zippy AI</div>
-<div>Thumbnail Studio</div>
+
+<header class="topbar">
+  <a class="logo" href="#/home">⚡ Zippy AI</a>
+  <nav class="nav" id="nav">
+    <a href="#/home" data-route="home">Home</a>
+    <a href="#/thumbnail" data-route="thumbnail">Thumbnail</a>
+    <a href="#/image" data-route="image">AI Image</a>
+    <a href="#/video" data-route="video">AI Video</a>
+  </nav>
+  <button class="icon-btn" id="settingsBtn" title="API key settings" aria-label="API key settings">⚙️</button>
 </header>
 
 <main>
-<h1>Professional Thumbnail Editor</h1>
-<p style="text-align:center;color:#aab2c9">Create • Edit • Move • Design</p>
 
-<div class="panel">
-<h3>📷 Background Image</h3>
-<input type="file" id="photo" accept="image/*">
+<!-- ============ HOME ============ -->
+<section class="view" id="view-home">
+  <div class="hero">
+    <h1>Three tools. One browser tab.</h1>
+    <p class="lead">Design a thumbnail, generate an AI image, or build a video from a script — all client-side, no build step, no signup.</p>
+  </div>
 
-<h3>➕ Add New Layers</h3>
-<div class="tools">
-<button onclick="addText()">+ Text</button>
-<button onclick="addShape('rect')">+ Box</button>
-<button onclick="addShape('circle')">+ Circle</button>
-<button onclick="addShape('line')">+ Line</button>
-<button onclick="addColorLayer()">+ Color Layer</button>
-<button onclick="duplicate()">Duplicate</button>
-</div>
-</div>
+  <div class="cards">
+    <a class="card" href="#/thumbnail">
+      <div class="card-icon">🎨</div>
+      <h2>Thumbnail Studio</h2>
+      <p>Layer-based 1280×720 editor. Text, shapes, colour layers, drag to position, export PNG.</p>
+      <span class="card-cta">Open editor →</span>
+    </a>
 
-<div class="panel">
-<h3>🎨 Your Thumbnail</h3>
-<p class="small">کسی بھی Layer کو انگلی سے پکڑ کر منتقل کریں۔ منتخب Layer کو نیچے سے ایڈٹ کریں۔</p>
-<canvas id="canvas" width="1280" height="720"></canvas>
-<p class="small">Canvas: 1280 × 720 pixels</p>
-</div>
+    <a class="card" href="#/image">
+      <div class="card-icon">🖼️</div>
+      <h2>AI Image Creator</h2>
+      <p>Prompt → image. Pick aspect ratio and style, generate, download. Demo mode works without a key.</p>
+      <span class="card-cta">Create image →</span>
+    </a>
 
-<div class="panel">
-<h3>📚 Layers Panel</h3>
-<div id="layers"></div>
-</div>
+    <a class="card" href="#/video">
+      <div class="card-icon">🎬</div>
+      <h2>AI Video Generator</h2>
+      <p>Script → storyboard → editable timeline with captions and durations. Export a real .webm.</p>
+      <span class="card-cta">Build video →</span>
+    </a>
+  </div>
 
-<div class="panel">
-<h3>✏️ Edit Selected Layer</h3>
-<div id="editor">
-<p class="small">پہلے کوئی Layer منتخب کریں۔</p>
-</div>
-</div>
+  <div class="panel note">
+    <h3>How the AI parts work</h3>
+    <p class="small">Both AI tools run in <strong>demo mode</strong> until you add your own API key in <button class="link-btn" data-open-settings>Settings</button>. Keys are stored only in your browser's <code>localStorage</code> — never in this repo, never sent anywhere except the provider you configure.</p>
+  </div>
+</section>
 
-<div class="panel">
-<h3>💾 Save Your Design</h3>
-<button class="full" onclick="download()">⬇ Download PNG</button>
-<button class="full secondary" onclick="reset()">Reset Design</button>
-</div>
+<!-- ============ THUMBNAIL ============ -->
+<section class="view" id="view-thumbnail">
+  <div class="view-head">
+    <h1>Professional Thumbnail Editor</h1>
+    <p class="small">Create • Edit • Move • Design — 1280 × 720</p>
+  </div>
+
+  <div class="panel">
+    <h3>📷 Background Image</h3>
+    <input type="file" id="photo" accept="image/*">
+    <button class="secondary full" id="removePhoto">Remove background image</button>
+
+    <h3>➕ Add New Layers</h3>
+    <div class="tools">
+      <button data-add="text">+ Text</button>
+      <button data-add="rect">+ Box</button>
+      <button data-add="circle">+ Circle</button>
+      <button data-add="line">+ Line</button>
+      <button data-add="color">+ Color Layer</button>
+      <button data-add="duplicate">Duplicate</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>🎨 Your Thumbnail</h3>
+    <p class="small rtl" dir="rtl" lang="ur">کسی بھی Layer کو انگلی سے پکڑ کر منتقل کریں۔ منتخب Layer کو نیچے سے ایڈٹ کریں۔</p>
+    <canvas id="canvas" width="1280" height="720"></canvas>
+    <p class="small">Canvas: 1280 × 720 pixels · arrow keys nudge the selected layer</p>
+  </div>
+
+  <div class="panel">
+    <h3>📚 Layers Panel</h3>
+    <div id="layers"></div>
+  </div>
+
+  <div class="panel">
+    <h3>✏️ Edit Selected Layer</h3>
+    <div id="editor"><p class="small rtl" dir="rtl" lang="ur">پہلے کوئی Layer منتخب کریں۔</p></div>
+  </div>
+
+  <div class="panel">
+    <h3>💾 Save Your Design</h3>
+    <div class="row">
+      <button id="download1x">⬇ Download PNG</button>
+      <button id="download2x" class="secondary">⬇ Download 2×</button>
+    </div>
+    <div class="row" style="margin-top:9px">
+      <button id="undoBtn" class="secondary">↶ Undo</button>
+      <button id="redoBtn" class="secondary">↷ Redo</button>
+    </div>
+    <button class="full danger" id="resetBtn">Reset Design</button>
+    <p class="small" id="saveState">Autosaved in this browser.</p>
+  </div>
+</section>
+
+<!-- ============ AI IMAGE ============ -->
+<section class="view" id="view-image">
+  <div class="view-head">
+    <h1>AI Image Creator</h1>
+    <p class="small">Describe it → generate → download</p>
+  </div>
+
+  <div class="panel">
+    <div id="imageKeyNotice" class="notice warn"></div>
+
+    <label for="imgPrompt">Prompt</label>
+    <textarea id="imgPrompt" placeholder="A neon-lit street food stall in Karachi at night, cinematic, shallow depth of field"></textarea>
+
+    <div class="row">
+      <div>
+        <label for="imgRatio">Aspect ratio</label>
+        <select id="imgRatio">
+          <option value="1:1">1:1 — square</option>
+          <option value="16:9" selected>16:9 — landscape</option>
+          <option value="9:16">9:16 — portrait</option>
+        </select>
+      </div>
+      <div>
+        <label for="imgStyle">Style</label>
+        <select id="imgStyle">
+          <option value="none">No style</option>
+          <option value="photographic">Photographic</option>
+          <option value="cinematic">Cinematic</option>
+          <option value="illustration">Illustration</option>
+          <option value="3d-render">3D render</option>
+          <option value="flat-vector">Flat vector</option>
+          <option value="watercolor">Watercolour</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="full" id="imgGenerate">✨ Generate image</button>
+    <p class="small" id="imgStatus"></p>
+  </div>
+
+  <div class="panel" id="imgResultPanel" hidden>
+    <h3>🖼️ Result</h3>
+    <div class="result-frame"><img id="imgResult" alt="Generated image"></div>
+    <p class="small" id="imgMeta"></p>
+    <div class="row">
+      <button id="imgDownload">⬇ Download</button>
+      <button id="imgAgain" class="secondary">↻ Generate again</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ AI VIDEO ============ -->
+<section class="view" id="view-video">
+  <div class="view-head">
+    <h1>AI Video Generator &amp; Editor</h1>
+    <p class="small">Script → storyboard → timeline → export</p>
+  </div>
+
+  <div class="panel">
+    <div id="videoKeyNotice" class="notice warn"></div>
+
+    <label for="vidScript">Script or prompt</label>
+    <textarea id="vidScript" placeholder="One line per scene. Example:\nOur new winter collection is here\nWarm fabrics, honest prices\nFree delivery across Pakistan"></textarea>
+    <button class="full" id="vidStoryboard">🪄 Build storyboard from script</button>
+    <p class="small">Each non-empty line becomes one scene. You can also add your own images below.</p>
+  </div>
+
+  <div class="panel">
+    <h3>➕ Add scenes</h3>
+    <div class="row">
+      <label class="file-btn">📷 Add images<input type="file" id="vidImages" accept="image/*" multiple hidden></label>
+      <button class="secondary" id="vidAddColor">🎨 Colour card</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>🎥 Preview</h3>
+    <canvas id="vidCanvas" width="1280" height="720"></canvas>
+    <div class="row" style="margin-top:10px">
+      <button id="vidPlay">▶ Play</button>
+      <button id="vidStop" class="secondary">■ Stop</button>
+    </div>
+    <p class="small" id="vidTime">0.0s / 0.0s</p>
+  </div>
+
+  <div class="panel">
+    <h3>📚 Timeline</h3>
+    <div id="vidTimeline"><p class="small">No scenes yet — build a storyboard or add images.</p></div>
+  </div>
+
+  <div class="panel">
+    <h3>💾 Export</h3>
+    <button class="full" id="vidExport">⬇ Export video (.webm)</button>
+    <p class="small" id="vidExportStatus">Renders your timeline in real time and records it in the browser — no server, no upload.</p>
+  </div>
+</section>
+
 </main>
 
-<footer>© 2026 Zippy AI Tools</footer>
+<footer>© 2026 Zippy AI Tools · <a href="https://github.com/jamalsb/zippy-ai-tools">source</a></footer>
 
-<script>
-const W=1280,H=720;
-const canvas=document.getElementById("canvas");
-const ctx=canvas.getContext("2d");
-let layers=[];
-let selected=null;
-let photo=null;
-let dragging=false;
-let exporting=false;
-let offsetX=0,offsetY=0;
+<!-- Settings modal -->
+<div class="modal" id="settingsModal" hidden>
+  <div class="modal-box">
+    <h2>API keys</h2>
+    <p class="small">Stored only in this browser (<code>localStorage</code>). Leave blank to stay in demo mode.</p>
 
-function uid(){return Date.now()+Math.random();}
-function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
-function current(){return layers.find(l=>l.id===selected);}
+    <label for="keyImage">Image generation key</label>
+    <input type="password" id="keyImage" placeholder="sk-..." autocomplete="off">
 
-function addText(){
-const l={
-id:uid(),type:"text",text:"YOUR TEXT",
-x:W/2,y:H/2,size:90,
-color:"#ffffff",bg:"transparent",
-font:"Arial",bold:true,
-stroke:"#000000",strokeWidth:4,
-opacity:1
-};
-layers.push(l);
-select(l.id);
-}
+    <label for="keyImageBase">Image API base URL</label>
+    <input type="text" id="keyImageBase" placeholder="https://api.openai.com/v1">
 
-function addShape(type){
-const l={
-id:uid(),type,x:W/2,y:H/2,
-w:type==="line"?500:400,
-h:200,
-color:"#8055e9",opacity:1
-};
-layers.push(l);
-select(l.id);
-}
+    <label for="keyVideo">Video generation key <span class="small">(optional)</span></label>
+    <input type="password" id="keyVideo" placeholder="not configured" autocomplete="off">
 
-function addColorLayer(){
-const l={
-id:uid(),type:"rect",x:W/2,y:H/2,
-w:W,h:H,
-color:"#8055e9",opacity:0.5
-};
-layers.push(l);
-select(l.id);
-}
+    <div class="row" style="margin-top:16px">
+      <button id="saveKeys">Save</button>
+      <button id="clearKeys" class="secondary">Clear all</button>
+    </div>
+    <button class="full secondary" id="closeSettings">Close</button>
+  </div>
+</div>
 
-function select(id){
-selected=id;
-draw();
-renderLayers();
-renderEditor();
-}
+<div class="toast" id="toast" hidden></div>
 
-function renderLayers(){
-const box=document.getElementById("layers");
-box.innerHTML="";
-[...layers].reverse().forEach(l=>{
-const div=document.createElement("div");
-div.className="layer"+(l.id===selected?" active":"");
-
-const name=l.type==="text"?(l.text||"Text"):l.type==="rect"&&l.w===W&&l.h===H?"Color Layer":l.type;
-const label=document.createElement("span");
-label.textContent=name.slice(0,22);
-label.style.flex="1";
-label.onclick=()=>select(l.id);
-
-const up=document.createElement("button");
-up.textContent="↑";
-up.onclick=()=>moveLayer(l.id,1);
-
-const down=document.createElement("button");
-down.textContent="↓";
-down.onclick=()=>moveLayer(l.id,-1);
-
-const del=document.createElement("button");
-del.textContent="✕";
-del.className="danger";
-del.onclick=()=>removeLayer(l.id);
-
-div.append(label,up,down,del);
-box.append(div);
-});
-}
-
-function addField(box,labelText,element){
-const wrap=document.createElement("div");
-const title=document.createElement("label");
-title.textContent=labelText;
-wrap.append(title,element);
-box.append(wrap);
-}
-
-function colorInput(value,change){
-const el=document.createElement("input");
-el.type="color";
-el.value=value;
-el.addEventListener("input",()=>{
-change(el.value);
-draw();
-});
-return el;
-}
-
-function slider(value,min,max,step,change){
-const el=document.createElement("input");
-el.type="range";
-el.min=min;
-el.max=max;
-el.step=step;
-el.value=value;
-el.addEventListener("input",()=>{
-change(parseFloat(el.value));
-draw();
-});
-return el;
-}
-
-function renderEditor(){
-const l=current();
-const box=document.getElementById("editor");
-box.innerHTML="";
-
-if(!l){
-box.innerHTML='<p class="small">پہلے کوئی Layer منتخب کریں۔</p>';
-return;
-}
-
-if(l.type==="text"){
-const text=document.createElement("textarea");
-text.value=l.text;
-text.oninput=()=>{
-l.text=text.value;
-draw();
-renderLayers();
-};
-addField(box,"Text Content",text);
-
-addField(box,"Text Color",colorInput(l.color,v=>l.color=v));
-
-const bgOn=document.createElement("input");
-bgOn.type="checkbox";
-bgOn.checked=l.bg!=="transparent";
-
-const bgColor=colorInput(l.bg==="transparent"?"#8055e9":l.bg,v=>l.bg=v);
-bgColor.disabled=!bgOn.checked;
-
-bgOn.onchange=()=>{
-l.bg=bgOn.checked?bgColor.value:"transparent";
-bgColor.disabled=!bgOn.checked;
-draw();
-};
-
-addField(box,"Show Text Background",bgOn);
-addField(box,"Text Background Color",bgColor);
-
-const font=document.createElement("select");
-["Arial","Impact","Georgia","Verdana","Trebuchet MS","Courier New"].forEach(f=>{
-const o=document.createElement("option");
-o.value=f;
-o.textContent=f;
-font.append(o);
-});
-font.value=l.font;
-font.onchange=()=>{
-l.font=font.value;
-draw();
-};
-addField(box,"Font Style",font);
-
-addField(box,"Font Size",slider(l.size,10,300,1,v=>l.size=v));
-addField(box,"Outline Color",colorInput(l.stroke,v=>l.stroke=v));
-addField(box,"Outline Width",slider(l.strokeWidth,0,20,1,v=>l.strokeWidth=v));
-}else{
-addField(box,"Layer Color",colorInput(l.color,v=>l.color=v));
-
-if(l.type==="line"){
-addField(box,"Line Length",slider(l.w,20,W,1,v=>l.w=v));
-}else{
-addField(box,"Width",slider(l.w,10,W,1,v=>l.w=v));
-addField(box,"Height",slider(l.h,10,H,1,v=>l.h=v));
-}
-}
-
-addField(box,"Horizontal Position",slider(l.x,0,W,1,v=>l.x=v));
-addField(box,"Vertical Position",slider(l.y,0,H,1,v=>l.y=v));
-addField(box,"Opacity",slider(l.opacity,0,1,0.01,v=>l.opacity=v));
-
-const buttons=document.createElement("div");
-buttons.className="row";
-buttons.style.marginTop="12px";
-
-const dup=document.createElement("button");
-dup.textContent="Duplicate";
-dup.onclick=duplicate;
-
-const del=document.createElement("button");
-del.textContent="Delete";
-del.className="danger";
-del.onclick=()=>removeLayer(l.id);
-
-buttons.append(dup,del);
-box.append(buttons);
-}
-
-function moveLayer(id,direction){
-const i=layers.findIndex(l=>l.id===id);
-const j=i+direction;
-if(j<0||j>=layers.length)return;
-[layers[i],layers[j]]=[layers[j],layers[i]];
-draw();
-renderLayers();
-}
-
-function removeLayer(id){
-layers=layers.filter(l=>l.id!==id);
-selected=null;
-draw();
-renderLayers();
-renderEditor();
-}
-
-function duplicate(){
-const l=current();
-if(!l)return;
-const copy={...l,id:uid(),x:l.x+35,y:l.y+35};
-layers.push(copy);
-select(copy.id);
-}
-
-// Text box size, used for drawing the background, the selection frame and hit testing
-function textBounds(l){
-ctx.font=(l.bold?"bold ":"")+l.size+"px "+l.font;
-const lines=l.text.split("\n");
-const lineHeight=l.size*1.2;
-const maxWidth=Math.max(10,...lines.map(t=>ctx.measureText(t).width));
-const w=Math.min(maxWidth+35,1200);
-const h=lines.length*lineHeight+12;
-return {x:l.x-w/2,y:l.y-h/2,w,h};
-}
-
-function bounds(l){
-if(l.type==="text")return textBounds(l);
-if(l.type==="line")return {x:l.x-l.w/2,y:l.y-12,w:l.w,h:24};
-return {x:l.x-l.w/2,y:l.y-l.h/2,w:l.w,h:l.h};
-}
-
-function drawLayer(l){
-ctx.save();
-ctx.globalAlpha=clamp(Number(l.opacity??1),0,1);
-
-if(l.type==="text"){
-ctx.textAlign="center";
-ctx.textBaseline="middle";
-
-const b=textBounds(l);
-if(l.bg!=="transparent"){
-ctx.fillStyle=l.bg;
-ctx.fillRect(b.x,b.y,b.w,b.h);
-}
-
-const lines=l.text.split("\n");
-const lineHeight=l.size*1.2;
-lines.forEach((line,i)=>{
-const y=l.y+(i-(lines.length-1)/2)*lineHeight;
-if(l.strokeWidth>0){
-ctx.lineWidth=l.strokeWidth;
-ctx.strokeStyle=l.stroke;
-ctx.strokeText(line,l.x,y,1180);
-}
-ctx.fillStyle=l.color;
-ctx.fillText(line,l.x,y,1180);
-});
-}else{
-ctx.fillStyle=l.color;
-ctx.strokeStyle=l.color;
-ctx.lineWidth=8;
-
-if(l.type==="rect"){
-ctx.fillRect(l.x-l.w/2,l.y-l.h/2,l.w,l.h);
-}
-if(l.type==="circle"){
-ctx.beginPath();
-ctx.ellipse(l.x,l.y,l.w/2,l.h/2,0,0,Math.PI*2);
-ctx.fill();
-}
-if(l.type==="line"){
-ctx.beginPath();
-ctx.moveTo(l.x-l.w/2,l.y);
-ctx.lineTo(l.x+l.w/2,l.y);
-ctx.stroke();
-}
-}
-
-ctx.restore();
-}
-
-function drawSelection(l){
-const b=bounds(l);
-ctx.save();
-ctx.strokeStyle="#bd99ff";
-ctx.lineWidth=4;
-ctx.setLineDash([12,8]);
-ctx.strokeRect(b.x-10,b.y-10,b.w+20,b.h+20);
-ctx.restore();
-}
-
-function draw(){
-ctx.clearRect(0,0,W,H);
-ctx.fillStyle="#242344";
-ctx.fillRect(0,0,W,H);
-
-if(photo){
-const s=Math.max(W/photo.width,H/photo.height);
-const w=photo.width*s,h=photo.height*s;
-ctx.drawImage(photo,(W-w)/2,(H-h)/2,w,h);
-}
-
-layers.forEach(drawLayer);
-
-const l=current();
-if(l && !exporting)drawSelection(l);
-}
-
-function coords(e){
-const r=canvas.getBoundingClientRect();
-return {
-x:(e.clientX-r.left)*W/r.width,
-y:(e.clientY-r.top)*H/r.height
-};
-}
-
-function hit(l,p){
-const b=bounds(l);
-return p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h;
-}
-
-canvas.addEventListener("pointerdown",e=>{
-const p=coords(e);
-for(let i=layers.length-1;i>=0;i--){
-const l=layers[i];
-if(hit(l,p)){
-select(l.id);
-dragging=true;
-offsetX=p.x-l.x;
-offsetY=p.y-l.y;
-canvas.setPointerCapture(e.pointerId);
-return;
-}
-}
-selected=null;
-draw();
-renderLayers();
-renderEditor();
-});
-
-canvas.addEventListener("pointermove",e=>{
-if(!dragging)return;
-const p=coords(e);
-const l=current();
-if(!l)return;
-l.x=clamp(p.x-offsetX,0,W);
-l.y=clamp(p.y-offsetY,0,H);
-draw();
-});
-
-canvas.addEventListener("pointerup",()=>dragging=false);
-canvas.addEventListener("pointercancel",()=>dragging=false);
-
-document.getElementById("photo").addEventListener("change",e=>{
-const file=e.target.files[0];
-if(!file)return;
-if(!file.type.startsWith("image/")){
-alert("Select an image");
-return;
-}
-const reader=new FileReader();
-reader.onload=ev=>{
-const img=new Image();
-img.onload=()=>{
-photo=img;
-draw();
-};
-img.src=ev.target.result;
-};
-reader.readAsDataURL(file);
-});
-
-function download(){
-exporting=true;
-draw();
-const url=canvas.toDataURL("image/png");
-exporting=false;
-draw();
-
-const a=document.createElement("a");
-a.download="Zippy-AI-Thumbnail.png";
-a.href=url;
-a.click();
-}
-
-function reset(){
-if(!confirm("Reset your entire design?"))return;
-layers=[];
-photo=null;
-document.getElementById("photo").value="";
-selected=null;
-draw();
-renderLayers();
-renderEditor();
-}
-
-draw();
-renderLayers();
-renderEditor();
-</script>
+<script src="src/core.js"></script>
+<script src="src/thumbnail.js"></script>
+<script src="src/image-creator.js"></script>
+<script src="src/video-studio.js"></script>
+<script src="src/app.js"></script>
 </body>
 </html>
