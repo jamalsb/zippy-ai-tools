@@ -1,889 +1,247 @@
-/* Zippy AI Tools — AI Video Generator & Editor
-   Script -> storyboard -> editable timeline -> real MP4 export.
-   Rendering is 100% client-side (canvas + WebCodecs + src/mp4.js); nothing is uploaded.
-*/
-window.VideoStudio = (function () {
-  'use strict';
+// Magic Hour API + Local Fallback
 
-  var W = 1280, H = 720;
-  var STORE_KEY = 'zippy.video.v1';
+const MAGIC_HOUR_BASE = 'https://api.magichour.ai/v1';
+let scenes = [];
+let playing = false;
+let playStart = 0;
+let playRaf = null;
+let cancelExport = false;
 
-  var scenes = [];        // {id, kind:'image'|'color', src, img, color, text, duration, fit}
-  var selected = null;
-  var booted = false;
+function loadVideoSettings() {
+  return { apiKey: localStorage.getItem('zippy.vidKey') || '' };
+}
 
-  var canvas, ctx;
-  var playing = false;
-  var rafId = null;
-  var startTime = 0;
-  var elapsed = 0;
-  var recording = false;
-
-  function el(id) { return document.getElementById(id); }
-  function uid() { return Zippy.uid('s'); }
-
-  function totalDuration() {
-    return scenes.reduce(function (a, s) { return a + (Number(s.duration) || 0); }, 0);
+function updateVideoKeyNotice() {
+  const { apiKey } = loadVideoSettings();
+  const el = document.getElementById('videoKeyNotice');
+  if (!el) return;
+  if (apiKey) {
+    el.className = 'notice ok';
+    el.textContent = '✅ Magic Hour key detected — AI video generation is available.';
+  } else {
+    el.className = 'notice warn';
+    el.textContent = 'ℹ️ No Magic Hour key set. Video export uses a local canvas renderer. Add a key in ⚙️ Settings for AI scenes.';
   }
+}
 
-  /* ---------------- persistence ---------------- */
+function buildStoryboard() {
+  const script = document.getElementById('vidScript').value.trim();
+  if (!script) return;
+  const lines = script.split('\n').map(l => l.trim()).filter(Boolean);
+  if (!lines.length) return;
+  scenes = lines.map((text, i) => ({
+    id: crypto.randomUUID(),
+    text, duration: 4,
+    color: `hsl(${(i * 47) % 360}, 60%, 30%)`,
+  }));
+  renderTimeline();
+  drawScene(0);
+}
 
-  var saveTimer = null;
-  function scheduleSave() {
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(function () {
-      try {
-        var slim = scenes.map(function (s) {
-          return {
-            id: s.id, kind: s.kind, src: s.src, color: s.color,
-            text: s.text, duration: s.duration, fit: s.fit
-          };
-        });
-        localStorage.setItem(STORE_KEY, JSON.stringify(slim));
-      } catch (e) { /* storage full — images are heavy, ignore */ }
-    }, 600);
+function renderTimeline() {
+  const el = document.getElementById('vidTimeline');
+  if (!scenes.length) {
+    el.innerHTML = '<p class="small">No scenes yet — build a storyboard or add images.</p>';
+    return;
   }
-
-  function loadSaved() {
-    try {
-      var raw = localStorage.getItem(STORE_KEY);
-      if (!raw) return;
-      var arr = JSON.parse(raw);
-      if (!Array.isArray(arr)) return;
-      arr.forEach(function (s) {
-        var scene = {
-          id: s.id || uid(), kind: s.kind || 'color', src: s.src || null,
-          color: s.color || '#8055e9', text: s.text || '',
-          duration: Number(s.duration) || 3, fit: s.fit || 'cover', img: null
-        };
-        if (scene.kind === 'image' && scene.src) {
-          var img = new Image();
-          img.onload = function () { scene.img = img; drawAt(0); };
-          img.src = scene.src;
-        }
-        scenes.push(scene);
-      });
-    } catch (e) { /* ignore */ }
-  }
-
-  /* ---------------- scene creation ---------------- */
-
-  function addScene(scene) {
-    scenes.push(scene);
-    selected = scene.id;
-    renderTimeline();
-    drawAt(0);
-    scheduleSave();
-  }
-
-  function addColorCard() {
-    addScene({
-      id: uid(), kind: 'color', color: '#8055e9',
-      text: 'New scene', duration: 3, fit: 'cover', img: null, src: null
+  el.innerHTML = scenes.map((s, i) => `
+    <div class="scene-item" data-id="${s.id}">
+      ${s.imgUrl ? `<img src="${s.imgUrl}" alt="">` : `<div style="width:80px;height:45px;background:${s.color};border-radius:4px"></div>`}
+      <div class="scene-info"><strong>Scene ${i + 1}</strong><br><span class="small">${escapeHtml(s.text.slice(0, 60))}</span></div>
+      <button class="scene-del" data-del="${s.id}">✕</button>
+    </div>
+  `).join('');
+  el.querySelectorAll('[data-del]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      scenes = scenes.filter(s => s.id !== btn.dataset.del);
+      renderTimeline();
     });
+  });
+}
+
+function escapeHtml(str) {
+  return str.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+const vidCanvas = document.getElementById('vidCanvas');
+const vidCtx = vidCanvas.getContext('2d');
+
+function drawScene(index) {
+  vidCtx.clearRect(0, 0, vidCanvas.width, vidCanvas.height);
+  const s = scenes[index];
+  if (!s) return;
+  if (s.imgUrl) {
+    const img = new Image();
+    img.onload = () => { vidCtx.drawImage(img, 0, 0, vidCanvas.width, vidCanvas.height); drawCaption(s.text); };
+    img.src = s.imgUrl;
+  } else {
+    vidCtx.fillStyle = s.color || '#1e293b';
+    vidCtx.fillRect(0, 0, vidCanvas.width, vidCanvas.height);
+    drawCaption(s.text);
   }
+}
 
-  function storyboardFromScript() {
-    var raw = (el('vidScript').value || '').trim();
-    if (!raw) {
-      Zippy.toast('Write a script first — one line per scene.');
-      el('vidScript').focus();
-      return;
-    }
-    var lines = raw.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
-    if (!lines.length) {
-      Zippy.toast('No usable lines found.');
-      return;
-    }
+function drawCaption(text) {
+  vidCtx.fillStyle = 'rgba(0,0,0,.55)';
+  vidCtx.fillRect(0, vidCanvas.height - 140, vidCanvas.width, 140);
+  vidCtx.fillStyle = '#fff';
+  vidCtx.font = 'bold 42px system-ui';
+  vidCtx.textAlign = 'center';
+  vidCtx.textBaseline = 'middle';
+  vidCtx.fillText(text, vidCanvas.width / 2, vidCanvas.height - 70, vidCanvas.width - 80);
+}
 
-    var palette = ['#8055e9', '#2f6fbf', '#1f8a70', '#b7452d', '#7a3fa8', '#2b3a67'];
-    lines.forEach(function (line, i) {
-      var words = line.split(/\s+/).length;
-      /* ~2.6 words per second, clamped to a sane range */
-      var dur = Zippy.clamp(Math.round((words / 2.6) * 10) / 10, 2, 8);
-      addScene({
-        id: uid(), kind: 'color',
-        color: palette[i % palette.length],
-        text: line, duration: dur, fit: 'cover', img: null, src: null
-      });
-    });
-    Zippy.toast(lines.length + ' scenes created');
-  }
-
-  function addImages(files) {
-    Array.prototype.forEach.call(files, function (file) {
-      if (!file.type.startsWith('image/')) return;
-      if (file.size > 12 * 1024 * 1024) {
-        Zippy.toast(file.name + ' is over 12 MB — skipped.');
-        return;
-      }
-      var reader = new FileReader();
-      reader.onload = function (ev) {
-        var src = ev.target.result;
-        var img = new Image();
-        img.onload = function () {
-          addScene({
-            id: uid(), kind: 'image', src: src, img: img,
-            color: '#000000', text: '', duration: 3, fit: 'cover'
-          });
-        };
-        img.onerror = function () { Zippy.toast('Could not load ' + file.name); };
-        img.src = src;
-      };
-      reader.readAsDataURL(file);
-    });
-  }
-
-  /* ---------------- timeline UI ---------------- */
-
-  function renderTimeline() {
-    var box = el('vidTimeline');
-    if (!box) return;
-    box.innerHTML = '';
-
-    if (!scenes.length) {
-      box.innerHTML = '<p class="small">No scenes yet — build a storyboard or add images.</p>';
-      updateTimeLabel();
-      return;
-    }
-
-    scenes.forEach(function (s, i) {
-      var row = document.createElement('div');
-      row.className = 'scene' + (s.id === selected ? ' active' : '');
-
-      var thumb;
-      if (s.kind === 'image' && s.src) {
-        thumb = document.createElement('img');
-        thumb.className = 'scene-thumb';
-        thumb.src = s.src;
-        thumb.alt = 'Scene ' + (i + 1);
-      } else {
-        thumb = document.createElement('div');
-        thumb.className = 'scene-thumb';
-        thumb.style.background = s.color || '#8055e9';
-      }
-
-      var body = document.createElement('div');
-      body.className = 'scene-body';
-      var title = document.createElement('div');
-      title.className = 'scene-title';
-      title.textContent = (i + 1) + '. ' + (s.text || (s.kind === 'image' ? 'Image scene' : 'Colour card'));
-      var meta = document.createElement('div');
-      meta.className = 'scene-meta';
-      meta.textContent = s.kind + ' · ' + s.duration + 's';
-      body.append(title, meta);
-
-      var actions = document.createElement('div');
-      actions.className = 'scene-actions';
-
-      var up = document.createElement('button');
-      up.textContent = '↑'; up.title = 'Move earlier';
-      up.setAttribute('aria-label', 'Move scene earlier');
-      up.disabled = i === 0;
-      up.onclick = function () { moveScene(i, -1); };
-
-      var down = document.createElement('button');
-      down.textContent = '↓'; down.title = 'Move later';
-      down.setAttribute('aria-label', 'Move scene later');
-      down.disabled = i === scenes.length - 1;
-      down.onclick = function () { moveScene(i, 1); };
-
-      var del = document.createElement('button');
-      del.textContent = '✕'; del.className = 'danger'; del.title = 'Delete scene';
-      del.setAttribute('aria-label', 'Delete scene');
-      del.onclick = function () { removeScene(s.id); };
-
-      actions.append(up, down, del);
-
-      row.append(thumb, body, actions);
-
-      /* inline fields for the selected scene */
-      if (s.id === selected) {
-        var fields = document.createElement('div');
-        fields.className = 'scene-fields';
-
-        var capWrap = document.createElement('div');
-        var capLabel = document.createElement('label');
-        capLabel.textContent = 'Caption / overlay text';
-        var cap = document.createElement('input');
-        cap.type = 'text';
-        cap.value = s.text || '';
-        cap.placeholder = 'Text shown on this scene';
-        cap.oninput = function () {
-          s.text = cap.value;
-          title.textContent = (i + 1) + '. ' + (s.text || (s.kind === 'image' ? 'Image scene' : 'Colour card'));
-          drawAt(currentSceneTime());
-          scheduleSave();
-        };
-        capWrap.append(capLabel, cap);
-
-        var durWrap = document.createElement('div');
-        var durLabel = document.createElement('label');
-        durLabel.textContent = 'Duration (seconds)';
-        var dur = document.createElement('input');
-        dur.type = 'number';
-        dur.min = '0.5'; dur.max = '30'; dur.step = '0.5';
-        dur.value = s.duration;
-        dur.oninput = function () {
-          s.duration = Zippy.clamp(parseFloat(dur.value) || 0.5, 0.5, 30);
-          meta.textContent = s.kind + ' · ' + s.duration + 's';
-          updateTimeLabel();
-          scheduleSave();
-        };
-        durWrap.append(durLabel, dur);
-
-        fields.append(capWrap, durWrap);
-
-        if (s.kind === 'image') {
-          var fitWrap = document.createElement('div');
-          var fitLabel = document.createElement('label');
-          fitLabel.textContent = 'Image fit';
-          var fit = document.createElement('select');
-          [['cover', 'Cover (fill frame)'], ['contain', 'Contain (letterbox)']].forEach(function (p) {
-            var o = document.createElement('option');
-            o.value = p[0]; o.textContent = p[1];
-            fit.append(o);
-          });
-          fit.value = s.fit || 'cover';
-          fit.onchange = function () { s.fit = fit.value; drawAt(currentSceneTime()); scheduleSave(); };
-          fitWrap.append(fitLabel, fit);
-          fields.append(fitWrap);
-        } else {
-          var colWrap = document.createElement('div');
-          var colLabel = document.createElement('label');
-          colLabel.textContent = 'Card colour';
-          var col = document.createElement('input');
-          col.type = 'color';
-          col.value = s.color || '#8055e9';
-          col.oninput = function () {
-            s.color = col.value;
-            thumb.style.background = col.value;
-            drawAt(currentSceneTime());
-            scheduleSave();
-          };
-          colWrap.append(colLabel, col);
-          fields.append(colWrap);
-        }
-
-        row.append(fields);
-      }
-
-      row.addEventListener('click', function (e) {
-        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-        selected = s.id;
-        renderTimeline();
-        drawAt(currentSceneTime());
-      });
-
-      box.append(row);
-    });
-
-    updateTimeLabel();
-  }
-
-  function moveScene(i, dir) {
-    var j = i + dir;
-    if (j < 0 || j >= scenes.length) return;
-    var tmp = scenes[i];
-    scenes[i] = scenes[j];
-    scenes[j] = tmp;
-    renderTimeline();
-    drawAt(currentSceneTime());
-    scheduleSave();
-  }
-
-  function removeScene(id) {
-    scenes = scenes.filter(function (s) { return s.id !== id; });
-    if (selected === id) selected = scenes.length ? scenes[0].id : null;
-    renderTimeline();
-    drawAt(currentSceneTime());
-    scheduleSave();
-  }
-
-  /* ---------------- rendering ---------------- */
-
-  function sceneAt(t) {
-    var acc = 0;
-    for (var i = 0; i < scenes.length; i++) {
-      var d = Number(scenes[i].duration) || 0;
-      if (t < acc + d) return { scene: scenes[i], index: i, local: t - acc };
+function playPreview() {
+  if (!scenes.length || playing) return;
+  playing = true;
+  playStart = performance.now();
+  cancelExport = false;
+  const totalDur = scenes.reduce((a, s) => a + s.duration, 0) * 1000;
+  let elapsed = 0;
+  function tick(now) {
+    if (!playing) return;
+    elapsed = now - playStart;
+    if (elapsed >= totalDur) { stopPreview(); return; }
+    let acc = 0;
+    for (let i = 0; i < scenes.length; i++) {
+      const d = scenes[i].duration * 1000;
+      if (elapsed < acc + d) { drawScene(i); break; }
       acc += d;
     }
-    return scenes.length ? { scene: scenes[scenes.length - 1], index: scenes.length - 1, local: 0 } : null;
+    document.getElementById('vidTime').textContent = `${(elapsed / 1000).toFixed(1)}s / ${(totalDur / 1000).toFixed(1)}s`;
+    playRaf = requestAnimationFrame(tick);
   }
+  playRaf = requestAnimationFrame(tick);
+}
 
-  function currentSceneTime() {
-    return playing ? elapsed : 0;
+function stopPreview() {
+  playing = false;
+  if (playRaf) cancelAnimationFrame(playRaf);
+  document.getElementById('vidTime').textContent = `0.0s / ${(scenes.reduce((a, s) => a + s.duration, 0)).toFixed(1)}s`;
+}
+
+function addImages(files) {
+  for (const f of files) {
+    scenes.push({ id: crypto.randomUUID(), text: f.name.replace(/\.[^.]+$/, ''), imgUrl: URL.createObjectURL(f), duration: 4 });
   }
+  renderTimeline();
+}
 
-  function drawFrame(scene, local) {
-    ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, W, H);
+function addColorCard() {
+  scenes.push({ id: crypto.randomUUID(), text: 'Colour card', color: `hsl(${Math.random() * 360}, 60%, 35%)`, duration: 4 });
+  renderTimeline();
+}
 
-    if (!scene) {
-      ctx.fillStyle = 'rgba(255,255,255,0.35)';
-      ctx.font = 'bold 34px system-ui, Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('Add a scene to start', W / 2, H / 2);
-      return;
-    }
+function setProgress(pct, text) {
+  const wrap = document.getElementById('vidProgress');
+  const fill = document.getElementById('vidProgressFill');
+  const track = wrap.querySelector('.progress-track');
+  wrap.hidden = false;
+  fill.style.width = `${pct}%`;
+  track.setAttribute('aria-valuenow', Math.round(pct));
+  if (text) document.getElementById('vidProgressText').textContent = text;
+}
 
-    if (scene.kind === 'image' && scene.img) {
-      var iw = scene.img.width, ih = scene.img.height;
-      if (scene.fit === 'contain') {
-        var sc = Math.min(W / iw, H / ih);
-        var dw = iw * sc, dh = ih * sc;
-        ctx.drawImage(scene.img, (W - dw) / 2, (H - dh) / 2, dw, dh);
-      } else {
-        var sc2 = Math.max(W / iw, H / ih);
-        var dw2 = iw * sc2, dh2 = ih * sc2;
-        ctx.drawImage(scene.img, (W - dw2) / 2, (H - dh2) / 2, dw2, dh2);
-      }
-    } else {
-      var g = ctx.createLinearGradient(0, 0, W, H);
-      g.addColorStop(0, scene.color || '#8055e9');
-      g.addColorStop(1, shade(scene.color || '#8055e9', -0.45));
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, W, H);
-    }
+function hideProgress() { document.getElementById('vidProgress').hidden = true; }
 
-    /* caption overlay */
-    if (scene.text) {
-      var pad = 64;
-      var fs = 56;
-      ctx.font = 'bold ' + fs + 'px system-ui, Arial';
-      var lines = Zippy.wrapText(ctx, scene.text, W - pad * 2);
-      var lh = fs * 1.25;
-      var blockH = lines.length * lh;
-      var baseY = H - pad - blockH;
+async function exportVideo() {
+  if (!scenes.length) { alert('Add at least one scene first.'); return; }
+  const { apiKey } = loadVideoSettings();
+  if (apiKey) await exportWithMagicHour(apiKey);
+  else await exportLocally();
+}
 
-      /* scrim for legibility */
-      var sg = ctx.createLinearGradient(0, baseY - 40, 0, H);
-      sg.addColorStop(0, 'rgba(0,0,0,0)');
-      sg.addColorStop(1, 'rgba(0,0,0,0.72)');
-      ctx.fillStyle = sg;
-      ctx.fillRect(0, baseY - 40, W, H - baseY + 40);
-
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      lines.forEach(function (line, i) {
-        var y = baseY + i * lh;
-        ctx.lineWidth = 8;
-        ctx.strokeStyle = 'rgba(0,0,0,0.85)';
-        ctx.lineJoin = 'round';
-        ctx.strokeText(line, W / 2, y);
-        ctx.fillStyle = '#fff';
-        ctx.fillText(line, W / 2, y);
+async function exportWithMagicHour(apiKey) {
+  const btn = document.getElementById('vidExport');
+  btn.disabled = true;
+  cancelExport = false;
+  setProgress(2, 'Submitting to Magic Hour…');
+  try {
+    for (let i = 0; i < scenes.length; i++) {
+      if (cancelExport) throw new Error('Cancelled');
+      setProgress(Math.round((i / scenes.length) * 90), `Generating scene ${i + 1} / ${scenes.length}…`);
+      const res = await fetch(`${MAGIC_HOUR_BASE}/text-to-video`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: `Zippy scene ${i + 1}`, end_seconds: scenes[i].duration, aspect_ratio: '16:9', resolution: '480p', model: 'ltx-2.5', style: { prompt: scenes[i].text } }),
       });
-    }
-
-    /* subtle progress bar */
-    var total = totalDuration();
-    if (total > 0) {
-      var acc = 0;
-      for (var i = 0; i < scenes.length; i++) {
-        if (scenes[i] === scene) break;
-        acc += Number(scenes[i].duration) || 0;
+      if (!res.ok) throw new Error(`Magic Hour error: ${await res.text()}`);
+      const job = await res.json();
+      const jobId = job.id || job.job_id;
+      let videoUrl = null;
+      for (let attempt = 0; attempt < 120; attempt++) {
+        if (cancelExport) throw new Error('Cancelled');
+        await new Promise(r => setTimeout(r, 3000));
+        const poll = await fetch(`${MAGIC_HOUR_BASE}/video-projects/${jobId}`, { headers: { 'Authorization': `Bearer ${apiKey}` } });
+        if (!poll.ok) continue;
+        const status = await poll.json();
+        const state = status.status || status.state;
+        if (state === 'complete') { videoUrl = status.download?.url || status.video_url; break; }
+        if (state === 'error') throw new Error('Magic Hour job failed');
+        setProgress(Math.round((i / scenes.length) * 90 + (attempt / 120) * (90 / scenes.length)), `Scene ${i + 1}: ${state}…`);
       }
-      var p = Zippy.clamp((acc + local) / total, 0, 1);
-      ctx.fillStyle = 'rgba(255,255,255,0.18)';
-      ctx.fillRect(0, H - 6, W, 6);
-      ctx.fillStyle = '#b18aff';
-      ctx.fillRect(0, H - 6, W * p, 6);
+      if (!videoUrl) throw new Error('Timeout');
+      const vidRes = await fetch(videoUrl);
+      const blob = await vidRes.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `zippy-scene-${i + 1}.mp4`; a.click();
+    }
+    setProgress(100, '✅ All scenes exported.');
+    setTimeout(hideProgress, 2000);
+  } catch (err) {
+    if (!cancelExport) alert(`Export failed: ${err.message}`);
+    hideProgress();
+  } finally { btn.disabled = false; }
+}
+
+async function exportLocally() {
+  const btn = document.getElementById('vidExport');
+  btn.disabled = true;
+  cancelExport = false;
+  setProgress(5, 'Recording canvas…');
+  const stream = vidCanvas.captureStream(30);
+  const mime = MediaRecorder.isTypeSupported('video/mp4;codecs=avc1') ? 'video/mp4;codecs=avc1' : 'video/webm';
+  const recorder = new MediaRecorder(stream, { mimeType: mime });
+  const chunks = [];
+  recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+  const done = new Promise(resolve => { recorder.onstop = resolve; });
+  recorder.start();
+  const totalDur = scenes.reduce((a, s) => a + s.duration, 0);
+  const start = performance.now();
+  for (let i = 0; i < scenes.length; i++) {
+    if (cancelExport) break;
+    const dur = scenes[i].duration * 1000;
+    const sceneStart = performance.now();
+    while (performance.now() - sceneStart < dur) {
+      drawScene(i);
+      setProgress(Math.min(95, (performance.now() - start) / 1000 / totalDur * 100), `Recording scene ${i + 1}…`);
+      await new Promise(r => setTimeout(r, 33));
+      if (cancelExport) break;
     }
   }
-
-  function shade(hex, amt) {
-    var m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    if (!m) return hex;
-    var r = parseInt(m[1], 16), g = parseInt(m[2], 16), b = parseInt(m[3], 16);
-    function f(v) {
-      var n = amt < 0 ? v * (1 + amt) : v + (255 - v) * amt;
-      return Math.round(Zippy.clamp(n, 0, 255));
-    }
-    return 'rgb(' + f(r) + ',' + f(g) + ',' + f(b) + ')';
+  recorder.stop();
+  await done;
+  if (chunks.length) {
+    const blob = new Blob(chunks, { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `zippy-video.${mime.includes('mp4') ? 'mp4' : 'webm'}`; a.click();
+    setProgress(100, '✅ Saved.');
   }
+  setTimeout(hideProgress, 2000);
+  btn.disabled = false;
+}
 
-  function drawAt(t) {
-    if (!ctx) return;
-    var hit = sceneAt(t);
-    drawFrame(hit ? hit.scene : null, hit ? hit.local : 0);
-  }
-
-  function updateTimeLabel() {
-    var lbl = el('vidTime');
-    if (!lbl) return;
-    var total = totalDuration();
-    lbl.textContent = elapsed.toFixed(1) + 's / ' + total.toFixed(1) + 's · ' + scenes.length + ' scene' + (scenes.length === 1 ? '' : 's');
-  }
-
-  /* ---------------- playback ---------------- */
-
-  function play() {
-    if (playing || !scenes.length) {
-      if (!scenes.length) Zippy.toast('Add at least one scene first.');
-      return;
-    }
-    playing = true;
-    startTime = performance.now();
-    var from = elapsed >= totalDuration() ? 0 : elapsed;
-    elapsed = from;
-
-    function tick(now) {
-      if (!playing) return;
-      elapsed = from + (now - startTime) / 1000;
-      var total = totalDuration();
-      if (elapsed >= total) {
-        elapsed = total;
-        drawAt(total - 0.001);
-        updateTimeLabel();
-        stop();
-        return;
-      }
-      drawAt(elapsed);
-      updateTimeLabel();
-      rafId = requestAnimationFrame(tick);
-    }
-    rafId = requestAnimationFrame(tick);
-  }
-
-  function stop() {
-    playing = false;
-    if (rafId) cancelAnimationFrame(rafId);
-    rafId = null;
-    updateTimeLabel();
-  }
-
-  /* ---------------- export ----------------
-     MP4 is the default target. Three tiers, best first:
-       1. WebCodecs + mp4-muxer  -> real H.264 MP4, encoded offline (fast)
-       2. WebCodecs VP9 + muxer  -> MP4 container with a VP9 track
-       3. MediaRecorder          -> WebM fallback only when WebCodecs is missing
-     The user gets a .mp4 unless the browser cannot produce one at all.
-  */
-
-  var EXPORT_LABEL = '⬇ Export video (MP4)';
-  var FPS = 30;
-
-  function setExportBtn(disabled, label) {
-    var btn = el('vidExport');
-    if (!btn) return;
-    btn.disabled = !!disabled;
-    btn.textContent = label || EXPORT_LABEL;
-  }
-
-  function setStatus(msg) {
-    var st = el('vidExportStatus');
-    if (st) st.innerHTML = msg;
-  }
-
-  /* ---------------- export progress ---------------- */
-
-  var lastPct = 0;
-  var finishProgressTimer = null;
-  var cancelRequested = false;
-
-  function cancelledError() {
-    var e = new Error('Export cancelled');
-    e.cancelled = true;
-    return e;
-  }
-
-  function showProgress() {
-    if (finishProgressTimer) { clearTimeout(finishProgressTimer); finishProgressTimer = null; }
-    var wrap = el('vidProgress');
-    if (wrap) {
-      wrap.hidden = false;
-      wrap.className = 'progress';
-    }
-    lastPct = 0;
-    setProgress(0, 'Preparing…');
-  }
-
-  function hideProgress() {
-    if (finishProgressTimer) { clearTimeout(finishProgressTimer); finishProgressTimer = null; }
-    var wrap = el('vidProgress');
-    if (wrap) {
-      wrap.hidden = true;
-      wrap.className = 'progress';
-      var track = wrap.querySelector('.progress-track');
-      if (track) track.setAttribute('aria-valuenow', '0');
-    }
-    var fill = el('vidProgressFill');
-    if (fill) fill.style.width = '0%';
-  }
-
-  /* pct drives the bar width; text is the label under it; cls switches the bar
-     to its finished (green) or cancelled (amber) look. Passing cls = null
-     leaves the current class alone. */
-  function setProgress(pct, text, cls) {
-    var n = Math.round(Number(pct) || 0);
-    if (n < 0) n = 0;
-    if (n > 100) n = 100;
-    lastPct = n;
-
-    var fill = el('vidProgressFill');
-    if (fill) fill.style.width = n + '%';
-
-    var wrap = el('vidProgress');
-    if (wrap) {
-      var track = wrap.querySelector('.progress-track');
-      if (track) track.setAttribute('aria-valuenow', String(n));
-      if (cls !== null && cls !== undefined) wrap.className = 'progress' + (cls ? ' ' + cls : '');
-    }
-
-    var label = el('vidProgressText');
-    if (label && text !== undefined && text !== null) label.textContent = text;
-  }
-
-  function fmtEta(seconds) {
-    if (!isFinite(seconds) || seconds < 0) return '';
-    if (seconds < 1) return 'almost done';
-    if (seconds < 60) return '~' + Math.round(seconds) + 's left';
-    var m = Math.floor(seconds / 60);
-    var s = Math.round(seconds % 60);
-    return '~' + m + 'm ' + s + 's left';
-  }
-
-  /* Called once per encode batch: percentage from the frame count, ETA from the
-     average time per frame so far. Frames fill 0–99%; the last 1% is the mux
-     step, so the bar never jumps backwards. */
-  function reportFrameProgress(done, total, startedAt) {
-    var ratio = done / total;
-    var framePct = Math.min(99, Math.round(ratio * 100));
-    var text = 'Encoding… ' + framePct + '% · ' + done + '/' + total + ' frames';
-    if (done > 0 && done < total) {
-      var perFrame = (performance.now() - startedAt) / done;
-      var eta = fmtEta((perFrame * (total - done)) / 1000);
-      if (eta) text += ' · ' + eta;
-    }
-    setProgress(ratio * 99, text);
-    setExportBtn(true, '⏳ Encoding… ' + framePct + '%');
-  }
-
-  function fmtMB(bytes) {
-    return (bytes / 1048576).toFixed(2) + ' MB';
-  }
-
-  function fmtDur(sec) {
-    var m = Math.floor(sec / 60);
-    var s = sec - m * 60;
-    return m ? m + 'm ' + s.toFixed(1) + 's' : sec.toFixed(1) + 's';
-  }
-
-  /* The muxer is a plain script (src/mp4.js) loaded before this file. */
-  function loadMuxer() {
-    if (window.Mp4Muxer && typeof window.Mp4Muxer.build === 'function') {
-      return Promise.resolve(window.Mp4Muxer);
-    }
-    return Promise.reject(new Error('MP4 muxer not loaded — check src/mp4.js'));
-  }
-
-  /* Which WebCodecs codec can we actually encode with? */
-  function pickCodec() {
-    if (typeof VideoEncoder === 'undefined' || typeof VideoFrame === 'undefined') {
-      return Promise.resolve(null);
-    }
-    var cands = [
-      { codec: 'avc1.42001E', fam: 'avc' },
-      { codec: 'avc1.42E01E', fam: 'avc' },
-      { codec: 'avc1.4D401E', fam: 'avc' },
-      { codec: 'avc1.640028', fam: 'avc' },
-      { codec: 'vp09.00.10.08', fam: 'vp9' }
-    ];
-    var i = 0;
-    function next() {
-      if (i >= cands.length) return Promise.resolve(null);
-      var c = cands[i++];
-      return VideoEncoder.isConfigSupported({
-        codec: c.codec, width: W, height: H, bitrate: 5000000, framerate: FPS
-      }).then(function (r) {
-        return r && r.supported ? c : next();
-      }).catch(function () { return next(); });
-    }
-    return next();
-  }
-
-  /* Render every frame off-line and encode it — much faster than real time. */
-  function encodeWithWebCodecs(codec) {
-    return loadMuxer().then(function (muxer) {
-      var encErr = null;
-      var chunks = [];
-      var description = null;
-
-      var encoder = new VideoEncoder({
-        output: function (chunk, meta) {
-          var buf = new Uint8Array(chunk.byteLength);
-          chunk.copyTo(buf);
-          chunks.push({ data: buf, isKey: chunk.type === 'key' });
-          /* H.264 needs the SPS/PPS from the decoder config to play. */
-          if (!description && meta && meta.decoderConfig && meta.decoderConfig.description) {
-            var d = meta.decoderConfig.description;
-            description = d instanceof Uint8Array ? d : new Uint8Array(d);
-          }
-        },
-        error: function (e) { encErr = e; }
-      });
-
-      encoder.configure({
-        codec: codec.codec, width: W, height: H,
-        bitrate: 5000000, framerate: FPS, latencyMode: 'quality'
-      });
-
-      var total = totalDuration();
-      var totalFrames = Math.max(1, Math.round(total * FPS));
-      var i = 0;
-      var encStart = performance.now();
-      setStatus('Encoding ' + totalFrames + ' frames at ' + W + '×' + H + '…');
-      setProgress(0, 'Encoding ' + totalFrames + ' frames at ' + W + '×' + H + '…');
-
-      function step() {
-        if (cancelRequested) {
-          try { encoder.close(); } catch (e) { /* already closed */ }
-          return Promise.reject(cancelledError());
-        }
-        if (encErr) return Promise.reject(encErr);
-        /* 10 frames per batch: small enough for a smooth bar, big enough to
-           stay fast on long timelines. */
-        var until = Math.min(totalFrames, i + 10);
-        while (i < until) {
-          var t = i / FPS;
-          drawAt(Math.min(t, total - 0.001));
-          var frame = new VideoFrame(canvas, {
-            timestamp: Math.round(t * 1e6),
-            duration: Math.round(1e6 / FPS)
-          });
-          encoder.encode(frame, { keyFrame: i % (FPS * 2) === 0 });
-          frame.close();
-          i++;
-        }
-        reportFrameProgress(i, totalFrames, encStart);
-        if (i < totalFrames) {
-          return new Promise(function (r) { setTimeout(r, 0); }).then(step);
-        }
-        setProgress(99, 'Finalising MP4… ' + totalFrames + ' frames encoded');
-        setExportBtn(true, '⏳ Writing MP4…');
-        return encoder.flush().then(function () {
-          encoder.close();
-          if (cancelRequested) throw cancelledError();
-          if (encErr) throw encErr;
-          if (!chunks.length) throw new Error('The encoder produced no frames.');
-
-          /* The muxer writes ISO-BMFF boxes; every frame is one sample. */
-          return muxer.build({
-            codec: codec.fam === 'avc' ? 'avc' : 'vp9',
-            width: W, height: H, fps: FPS,
-            description: description,
-            chunks: chunks
-          });
-        });
-      }
-      return step();
-    });
-  }
-
-  /* MediaRecorder fallback: real time, WebM only. */
-  function encodeWithMediaRecorder() {
-    return new Promise(function (resolve, reject) {
-      var candidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
-      var mime = '';
-      for (var i = 0; i < candidates.length; i++) {
-        if (window.MediaRecorder && MediaRecorder.isTypeSupported(candidates[i])) {
-          mime = candidates[i];
-          break;
-        }
-      }
-      if (!mime) return reject(new Error('This browser cannot record canvas video.'));
-      if (!canvas.captureStream) return reject(new Error('Canvas capture is not supported.'));
-
-      var stream = canvas.captureStream(FPS);
-      var chunks = [];
-      var rec;
-      try {
-        rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 5000000 });
-      } catch (e) { return reject(e); }
-
-      rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
-      rec.onstop = function () {
-        stream.getTracks().forEach(function (tr) { tr.stop(); });
-        resolve({ bytes: null, blob: new Blob(chunks, { type: mime }), mime: mime });
-      };
-
-      var total = totalDuration();
-      rec.start(250);
-      var t0 = performance.now();
-      setStatus('Recording ' + total.toFixed(1) + 's in real time (WebM fallback)…');
-      setProgress(0, 'Recording 0.0s / ' + total.toFixed(1) + 's (real time)…');
-
-      function frame(now) {
-        if (cancelRequested) {
-          try { rec.onstop = null; rec.stop(); } catch (e) { /* already stopped */ }
-          stream.getTracks().forEach(function (tr) { tr.stop(); });
-          return reject(cancelledError());
-        }
-        var t = (now - t0) / 1000;
-        if (t >= total) {
-          setProgress(99, 'Finalising WebM…');
-          setExportBtn(true, '⏳ Writing WebM…');
-          drawAt(total - 0.001);
-          setTimeout(function () { try { rec.stop(); } catch (e) { /* already stopped */ } }, 300);
-          return;
-        }
-        drawAt(t);
-        elapsed = t;
-        updateTimeLabel();
-        var pct = Math.min(98, (t / total) * 100);
-        setProgress(pct, 'Recording… ' + Math.round(pct) + '% · ' +
-          t.toFixed(1) + 's / ' + total.toFixed(1) + 's');
-        setExportBtn(true, '⏳ Recording… ' + Math.round(pct) + '%');
-        requestAnimationFrame(frame);
-      }
-      requestAnimationFrame(frame);
-    });
-  }
-
-  function exportVideo() {
-    if (recording) return;
-    if (!scenes.length) {
-      Zippy.toast('Add at least one scene first.');
-      return;
-    }
-    if (totalDuration() <= 0) {
-      Zippy.toast('Set a duration on at least one scene.');
-      return;
-    }
-
-    recording = true;
-    cancelRequested = false;
-    setExportBtn(true, '⏳ Exporting…');
-    setStatus('Preparing export…');
-    showProgress();
-
-    var started = performance.now();
-    var path = '';
-
-    pickCodec()
-      .then(function (codec) {
-        if (codec) {
-          path = codec.fam === 'avc' ? 'webcodecs-h264' : 'webcodecs-vp9';
-          return encodeWithWebCodecs(codec).then(function (bytes) {
-            return { bytes: bytes };
-          });
-        }
-        path = 'mediarecorder-webm';
-        return encodeWithMediaRecorder();
-      })
-      .then(function (res) {
-        var isMp4 = !!res.bytes;
-        var name = 'zippy-ai-video-' + Date.now() + (isMp4 ? '.mp4' : '.webm');
-        var blob = isMp4 ? new Blob([res.bytes], { type: 'video/mp4' }) : res.blob;
-        var size = isMp4 ? res.bytes.length : blob.size;
-        Zippy.downloadBlob(blob, name);
-
-        var secs = totalDuration();
-        var took = ((performance.now() - started) / 1000).toFixed(1);
-
-        var noteStyle = ' style="display:block;margin-top:6px;font-size:12px;color:#f0cd8f;opacity:.9"';
-        var note = '';
-        if (path === 'webcodecs-vp9') {
-          note = '<span' + noteStyle + '>Codec note: this browser exposes no H.264 encoder, so the file is ' +
-                 'MP4 with a VP9 video track. It plays in Chrome, Edge, Firefox and Safari 17+, but some ' +
-                 'older editors prefer H.264 — export from Chrome for that.</span>';
-        } else if (path === 'mediarecorder-webm') {
-          note = '<span' + noteStyle + '>Fallback: WebCodecs is unavailable in this browser, so the file is ' +
-                 'WebM, not MP4. Export from Chrome or Edge to get MP4.</span>';
-        }
-
-        setProgress(100, 'Done · ' + fmtMB(size) + ' · ' + fmtDur(secs), 'done');
-        setExportBtn(false, EXPORT_LABEL);
-        /* Leave the full bar up briefly so the finish is visible, then clear it. */
-        finishProgressTimer = setTimeout(hideProgress, 1200);
-
-        setStatus(
-          '<strong>' + (isMp4 ? 'MP4' : 'WebM') + ' exported</strong> · ' +
-          fmtMB(size) + ' · ' + fmtDur(secs) + ' · ' +
-          W + '×' + H + ' · ' + FPS + ' fps · took ' + took + 's' +
-          note
-        );
-        Zippy.toast(isMp4 ? 'MP4 exported' : 'WebM exported (fallback)');
-      })
-      .catch(function (e) {
-        hideProgress();
-        if (e && e.cancelled) {
-          setStatus('Export cancelled — nothing was downloaded. Your timeline is untouched.');
-          Zippy.toast('Export cancelled');
-          return;
-        }
-        setStatus('Export failed: ' + (e && e.message ? e.message : String(e)) +
-          '. Try Chrome or Edge for MP4 output.');
-        Zippy.toast('Export failed');
-      })
-      .then(function () {
-        recording = false;
-        cancelRequested = false;
-        setExportBtn(false, EXPORT_LABEL);
-        drawAt(0);
-        elapsed = 0;
-        updateTimeLabel();
-      });
-  }
-
-  /* ---------------- boot ---------------- */
-
-  function init() {
-    if (booted) return;
-    canvas = el('vidCanvas');
-    if (!canvas) return;
-    ctx = canvas.getContext('2d');
-    booted = true;
-
-    loadSaved();
-
-    var notice = el('videoKeyNotice');
-    if (notice) {
-      if (Zippy.getKey('video')) {
-        notice.className = 'notice ok';
-        notice.textContent = 'Video API key detected. Note: this build renders and exports locally — the key is reserved for a future hosted video model.';
-      } else {
-        notice.className = 'notice warn';
-        notice.textContent = 'No video API key set. This tool works fully offline: it builds a storyboard from your script and exports a real MP4 from the browser. No key needed.';
-      }
-    }
-
-    var sb = el('vidStoryboard');
-    if (sb) sb.onclick = storyboardFromScript;
-
-    var addColor = el('vidAddColor');
-    if (addColor) addColor.onclick = addColorCard;
-
-    var imgs = el('vidImages');
-    if (imgs) {
-      imgs.addEventListener('change', function (e) {
-        if (e.target.files && e.target.files.length) addImages(e.target.files);
-        e.target.value = '';
-      });
-    }
-
-    var p = el('vidPlay');
-    var s = el('vidStop');
-    var ex = el('vidExport');
-    if (p) p.onclick = play;
-    if (s) s.onclick = function () { stop(); elapsed = 0; drawAt(0); updateTimeLabel(); };
-    if (ex) ex.onclick = exportVideo;
-
-    var cx = el('vidCancel');
-    if (cx) cx.onclick = function () {
-      if (!recording) { hideProgress(); return; }
-      cancelRequested = true;
-      setProgress(lastPct, 'Cancelling…');
-      setExportBtn(true, '⏳ Cancelling…');
-    };
-
-    renderTimeline();
-    drawAt(0);
-  }
-
-  return { init: init };
-})();
+function initVideoStudio() {
+  updateVideoKeyNotice();
+  document.getElementById('vidStoryboard').addEventListener('click', buildStoryboard);
+  document.getElementById('vidPlay').addEventListener('click', playPreview);
+  document.getElementById('vidStop').addEventListener('click', stopPreview);
+  document.getElementById('vidExport').addEventListener('click', exportVideo);
+  document.getElementById('vidCancel').addEventListener('click', () => { cancelExport = true; });
+  document.getElementById('vidAddColor').addEventListener('click', addColorCard);
+  document.getElementById('vidImages').addEventListener('change', e => {
+    if (e.target.files.length) addImages(e.target.files);
+    e.target.value = '';
+  });
+  renderTimeline();
+                  }
