@@ -1,1 +1,3 @@
-
+User-agent: *
+Allow: /
+Sitemap: https://jamalsb.github.io/zippy-ai-tools/sitemap.xml
