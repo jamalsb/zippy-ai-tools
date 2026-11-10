@@ -1,123 +1,124 @@
-/* Zippy AI Tools — app shell: hash router, settings modal, boot */
-(function () {
-  'use strict';
+// ---- Hash routing ----
+const views = ['home', 'thumbnail', 'image', 'video'];
 
-  var ROUTES = ['home', 'thumbnail', 'image', 'video'];
-  var booted = {};
+function showView(name) {
+  if (!views.includes(name)) name = 'home';
+  views.forEach(v => {
+    const el = document.getElementById('view-' + v);
+    if (el) el.classList.toggle('active', v === name);
+  });
+  document.querySelectorAll('.nav a').forEach(a => {
+    a.classList.toggle('active', a.dataset.route === name);
+  });
+  window.scrollTo(0, 0);
+  if (name === 'image') updateImageKeyNotice();
+  if (name === 'video') updateVideoKeyNotice();
+}
 
-  function el(id) { return document.getElementById(id); }
+function handleRoute() {
+  const hash = location.hash.replace(/^#\//, '') || 'home';
+  showView(hash);
+}
+window.addEventListener('hashchange', handleRoute);
 
-  function currentRoute() {
-    var h = (location.hash || '').replace(/^#\/?/, '').trim();
-    return ROUTES.indexOf(h) >= 0 ? h : 'home';
-  }
+// ---- Toast ----
+let toastTimer = null;
+function toast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast' + (isError ? ' error' : '');
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 3500);
+}
 
-  function show(route) {
-    ROUTES.forEach(function (r) {
-      var view = el('view-' + r);
-      if (view) view.classList.toggle('active', r === route);
-    });
+// ---- Settings modal ----
+const settingsModal = document.getElementById('settingsModal');
 
-    document.querySelectorAll('#nav a').forEach(function (a) {
-      a.classList.toggle('active', a.dataset.route === route);
-    });
+function openSettings() {
+  document.getElementById('keyImage').value = localStorage.getItem('zippy.imgKey') || '';
+  document.getElementById('keyImageBase').value = localStorage.getItem('zippy.imgBase') || 'https://image.pollinations.ai';
+  document.getElementById('keyVideo').value = localStorage.getItem('zippy.vidKey') || '';
+  settingsModal.hidden = false;
+  document.getElementById('keyImage').focus();
+}
 
-    /* lazy-init each tool the first time it is opened */
-    if (route === 'thumbnail' && !booted.thumbnail) {
-      booted.thumbnail = true;
-      if (window.ThumbnailStudio) ThumbnailStudio.init();
+function closeSettings() {
+  settingsModal.hidden = true;
+  document.getElementById('settingsBtn').focus();
+}
+
+function saveSettings() {
+  const imgKey = document.getElementById('keyImage').value.trim();
+  const imgBase = document.getElementById('keyImageBase').value.trim() || 'https://image.pollinations.ai';
+  const vidKey = document.getElementById('keyVideo').value.trim();
+
+  if (imgKey) localStorage.setItem('zippy.imgKey', imgKey);
+  else localStorage.removeItem('zippy.imgKey');
+  
+  localStorage.setItem('zippy.imgBase', imgBase);
+  
+  if (vidKey) localStorage.setItem('zippy.vidKey', vidKey);
+  else localStorage.removeItem('zippy.vidKey');
+
+  toast('✅ Settings saved.');
+  closeSettings();
+  updateImageKeyNotice();
+  updateVideoKeyNotice();
+}
+
+function clearSettings() {
+  ['zippy.imgKey', 'zippy.imgBase', 'zippy.vidKey'].forEach(k => localStorage.removeItem(k));
+  document.getElementById('keyImage').value = '';
+  document.getElementById('keyImageBase').value = 'https://image.pollinations.ai';
+  document.getElementById('keyVideo').value = '';
+  toast('🗑️ All keys cleared.');
+  updateImageKeyNotice();
+  updateVideoKeyNotice();
+}
+
+// ---- Password toggles ----
+document.querySelectorAll('[data-toggle-pw]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const input = document.getElementById(btn.dataset.togglePw);
+    if (!input) return;
+    input.type = input.type === 'password' ? 'text' : 'password';
+    btn.textContent = input.type === 'password' ? '👁 show' : '🙈 hide';
+  });
+});
+
+// ---- Init ----
+document.addEventListener('DOMContentLoaded', () => {
+  handleRoute();
+  document.getElementById('settingsBtn').addEventListener('click', openSettings);
+  document.getElementById('closeSettings').addEventListener('click', closeSettings);
+  document.getElementById('saveKeys').addEventListener('click', saveSettings);
+  document.getElementById('clearKeys').addEventListener('click', clearSettings);
+
+  settingsModal.addEventListener('click', e => {
+    if (e.target === settingsModal) closeSettings();
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !settingsModal.hidden) closeSettings();
+  });
+
+  settingsModal.addEventListener('keydown', e => {
+    if (e.key !== 'Tab') return;
+    const focusable = settingsModal.querySelectorAll('button, input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault(); last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault(); first.focus();
     }
-    if (route === 'image' && !booted.image) {
-      booted.image = true;
-      if (window.ImageCreator) ImageCreator.init();
-    }
-    if (route === 'video' && !booted.video) {
-      booted.video = true;
-      if (window.VideoStudio) VideoStudio.init();
-    }
+  });
 
-    window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
-  }
+  document.querySelectorAll('[data-open-settings]').forEach(b => {
+    b.addEventListener('click', openSettings);
+  });
 
-  function route() { show(currentRoute()); }
-
-  /* ---------------- settings ---------------- */
-
-  function openSettings() {
-    var m = el('settingsModal');
-    if (!m) return;
-    el('keyImage').value = Zippy.getKey('image');
-    el('keyImageBase').value = Zippy.getKey('imageBase');
-    el('keyVideo').value = Zippy.getKey('video');
-    m.hidden = false;
-    el('keyImage').focus();
-  }
-
-  function closeSettings() {
-    var m = el('settingsModal');
-    if (m) m.hidden = true;
-  }
-
-  function saveKeys() {
-    Zippy.setKey('image', el('keyImage').value.trim());
-    Zippy.setKey('imageBase', el('keyImageBase').value.trim());
-    Zippy.setKey('video', el('keyVideo').value.trim());
-    if (window.ImageCreator) ImageCreator.refreshNotice();
-    closeSettings();
-    Zippy.toast('Settings saved in this browser');
-  }
-
-  function clearKeys() {
-    if (!confirm('Remove all saved API keys from this browser?')) return;
-    Zippy.setKey('image', '');
-    Zippy.setKey('imageBase', '');
-    Zippy.setKey('video', '');
-    el('keyImage').value = '';
-    el('keyImageBase').value = '';
-    el('keyVideo').value = '';
-    if (window.ImageCreator) ImageCreator.refreshNotice();
-    Zippy.toast('Keys cleared');
-  }
-
-  /* ---------------- boot ---------------- */
-
-  function init() {
-    window.addEventListener('hashchange', route);
-
-    var sb = el('settingsBtn');
-    if (sb) sb.onclick = openSettings;
-
-    var close = el('closeSettings');
-    if (close) close.onclick = closeSettings;
-
-    var save = el('saveKeys');
-    if (save) save.onclick = saveKeys;
-
-    var clr = el('clearKeys');
-    if (clr) clr.onclick = clearKeys;
-
-    document.querySelectorAll('[data-open-settings]').forEach(function (b) {
-      b.onclick = openSettings;
-    });
-
-    var modal = el('settingsModal');
-    if (modal) {
-      modal.addEventListener('click', function (e) {
-        if (e.target === modal) closeSettings();
-      });
-    }
-
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') closeSettings();
-    });
-
-    if (!location.hash) location.replace('#/home');
-    route();
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
-})();
+  initImageCreator();
+  initVideoStudio();
+});
