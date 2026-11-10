@@ -1,23 +1,28 @@
 <!DOCTYPE html>
 <html lang="en">
-<head> 
+<head>
+  <meta charset="UTF-8">
   <meta name="google-site-verification" content="nsl2yt2vZH2W3va55wAgg6p17hhnAZ2IVvuFwY5MZTk" />
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Zippy AI Tools — Thumbnail, Image &amp; Video Studio</title>
-<meta name="description" content="Zippy AI Tools: a free browser-based thumbnail editor, AI image creator and AI video generator/editor. No build step, no signup.">
-<meta property="og:title" content="Zippy AI Tools — Thumbnail, Image &amp; Video Studio">
-<meta property="og:description" content="Create thumbnails, AI images and videos right in your browser.">
-<meta property="og:type" content="website">
-<meta name="theme-color" content="#090d1b">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%238055e9'/%3E%3Ctext x='50' y='72' font-size='62' text-anchor='middle' fill='white'%3E%E2%9A%A1%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="src/styles.css">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Zippy AI Tools — Thumbnail, Image &amp; Video Studio</title>
+  <meta name="description" content="Zippy AI Tools: a free browser-based thumbnail editor, AI image creator and AI video generator/editor. No build step, no signup.">
+  <meta property="og:title" content="Zippy AI Tools — Thumbnail, Image &amp; Video Studio">
+  <meta property="og:description" content="Create thumbnails, AI images and videos right in your browser.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://jamalsb.github.io/zippy-ai-tools/">
+  <meta property="og:image" content="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%238055e9'/%3E%3Ctext x='50' y='72' font-size='62' text-anchor='middle' fill='white'%3E%E2%9A%A1%3C/text%3E%3C/svg%3E">
+  <link rel="canonical" href="https://jamalsb.github.io/zippy-ai-tools/">
+  <meta name="theme-color" content="#090d1b">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%238055e9'/%3E%3Ctext x='50' y='72' font-size='62' text-anchor='middle' fill='white'%3E%E2%9A%A1%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="src/styles.css">
 </head>
 <body>
 
-<a class="skip" href="#main">Skip to content</a>
+<noscript>
+  <p style="text-align:center;padding:20px;color:#f87171">Zippy AI Tools needs JavaScript to run.</p>
+</noscript>
 
-<header class="topbar">
+<a class="skip" href="#main">Skip to content</a>
 
 <header class="topbar">
   <a class="logo" href="#/home">⚡ Zippy AI</a>
@@ -94,7 +99,8 @@
   <div class="panel">
     <h3>🎨 Your Thumbnail</h3>
     <p class="small rtl" dir="rtl" lang="ur">کسی بھی Layer کو انگلی سے پکڑ کر منتقل کریں۔ منتخب Layer کو نیچے سے ایڈٹ کریں۔</p>
-    <canvas id="canvas" width="1280" height="720"></canvas>
+    <canvas id="canvas" width="1280" height="720" tabindex="0"
+            aria-label="Thumbnail design canvas, 1280 by 720 pixels"></canvas>
     <p class="small">Canvas: 1280 × 720 pixels · arrow keys nudge the selected layer</p>
   </div>
 
@@ -185,7 +191,7 @@
     <div id="videoKeyNotice" class="notice warn"></div>
 
     <label for="vidScript">Script or prompt</label>
-    <textarea id="vidScript" placeholder="One line per scene. Example:\nOur new winter collection is here\nWarm fabrics, honest prices\nFree delivery across Pakistan"></textarea>
+    <textarea id="vidScript" placeholder="One line per scene. Example:&#10;Our new winter collection is here&#10;Warm fabrics, honest prices&#10;Free delivery across Pakistan"></textarea>
     <button class="full" id="vidStoryboard">🪄 Build storyboard from script</button>
     <p class="small">Each non-empty line becomes one scene. You can also add your own images below.</p>
   </div>
@@ -193,7 +199,8 @@
   <div class="panel">
     <h3>➕ Add scenes</h3>
     <div class="row">
-      <label class="file-btn">📷 Add images<input type="file" id="vidImages" accept="image/*" multiple hidden></label>
+      <input type="file" id="vidImages" accept="image/*" multiple class="sr-only">
+      <label class="file-btn" for="vidImages">📷 Add images</label>
       <button class="secondary" id="vidAddColor">🎨 Colour card</button>
     </div>
   </div>
@@ -227,7 +234,7 @@
       </div>
     </div>
 
-    <p class="small" id="vidExportStatus">Encodes an MP4 in your browser — no server, no upload. H.264 when your browser supports it, VP9-in-MP4 otherwise, WebM only as a last resort.</p>
+    <p class="small" id="vidExportStatus">Encodes an MP4 in your browser — no server, no upload. MP4 (H.264) in Chrome/Edge; Safari and Firefox may fall back to WebM.</p>
   </div>
 </section>
 
@@ -236,25 +243,27 @@
 <footer>© 2026 Zippy AI Tools · <a href="https://github.com/jamalsb/zippy-ai-tools">source</a></footer>
 
 <!-- Settings modal -->
-<div class="modal" id="settingsModal" hidden>
+<div class="modal" id="settingsModal" hidden role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
   <div class="modal-box">
-    <h2>API keys</h2>
+    <h2 id="settingsTitle">API keys</h2>
     <p class="small">Stored only in this browser (<code>localStorage</code>). Leave blank to stay in demo mode.</p>
 
-    <label for="keyImage">Image generation key</label>
-    <input type="password" id="keyImage" placeholder="sk-..." autocomplete="off">
+    <label for="keyImage">Image generation key <span class="small">(optional — Pollinations works keyless)</span></label>
+    <input type="password" id="keyImage" placeholder="optional" autocomplete="off">
+    <button type="button" class="link-btn" data-toggle-pw="keyImage">👁 show</button>
 
     <label for="keyImageBase">Image API base URL</label>
-    <input type="text" id="keyImageBase" placeholder="https://api.openai.com/v1">
+    <input type="text" id="keyImageBase" value="https://image.pollinations.ai" placeholder="https://image.pollinations.ai">
 
-    <label for="keyVideo">Video generation key <span class="small">(optional)</span></label>
-    <input type="password" id="keyVideo" placeholder="not configured" autocomplete="off">
+    <label for="keyVideo">Magic Hour API key <span class="small">(for video)</span></label>
+    <input type="password" id="keyVideo" placeholder="Bearer token from magichour.ai/developer" autocomplete="off">
+    <button type="button" class="link-btn" data-toggle-pw="keyVideo">👁 show</button>
 
     <div class="row" style="margin-top:16px">
-      <button id="saveKeys">Save</button>
-      <button id="clearKeys" class="secondary">Clear all</button>
+      <button type="button" id="saveKeys">Save</button>
+      <button type="button" id="clearKeys" class="secondary">Clear all</button>
     </div>
-    <button class="full secondary" id="closeSettings">Close</button>
+    <button type="button" class="full secondary" id="closeSettings">Close</button>
   </div>
 </div>
 
